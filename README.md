@@ -33,22 +33,6 @@ npx @deepseek-ai/dsh web
 
 This installs the single npm package through the DSH CLI, which applies the package's root `cordis.patch.yml` (disables the stock `workspace`, `session-projection-cache`, and `ui-workspace` rows; inserts `workspace-archive-manager`, `session-projection-cache-archive-manager`, and `ui-workspace-archive-manager`).
 
-### Local development install
-
-Run `install.ps1` from an elevated PowerShell (it must write under `%USERPROFILE%\.dsh`):
-
-```powershell
-.\install.ps1
-```
-
-It performs three idempotent steps:
-
-1. Copies the three internal package sources to `%USERPROFILE%\.dsh\profiles\archive-manager\`;
-2. Creates junction links for the three internal package names under `%USERPROFILE%\.dsh\profiles\web\node_modules\` (ESM dependencies resolve through the Node parent-directory walk to the DSH flat fallback `%USERPROFILE%\.dsh\profiles\node_modules`, so the same module instances as the runtime are used);
-3. Backs up `%USERPROFILE%\.dsh\profiles\web\cordis.patch.yml` → `cordis.patch.yml.bak-<timestamp>` and appends the local patch block.
-
-**Restart `dsh web` to activate** (the session is interrupted; verify with the checklist below).
-
 ## Overview
 
 DSH Web keeps a registry-global `archivedSessionIds` set, but the stock UI offers no way to see archived sessions in the sidebar, no way to unarchive them, and no way to permanently delete a session. Naively hiding archived sessions from the list makes them unrecoverable through the GUI, and deleting a session touches several independent stores (transcript directory, workspace accounting, archive marker, projection cache) whose ordering matters.
@@ -65,7 +49,7 @@ DSH Web keeps a registry-global `archivedSessionIds` set, but the stock UI offer
 |---|---|
 | Scope | Show-archived toggle, archived styling + guard, unarchive, permanent delete |
 | Delivery | Single npm package; official packages untouched; web-profile patch layer (`cordis.patch.yml`) |
-| Install / rollback | `npx @deepseek-ai/dsh plugin --profile web add @gamegeek-saikel/dsh-archive-manager`; local dev via `install.ps1` / `rollback.ps1` |
+| Install / rollback | `npx @deepseek-ai/dsh plugin --profile web add @gamegeek-saikel/dsh-archive-manager` / `... remove ...` |
 | Remote API | Typert SRC endpoints `workspaceRegistry/unarchiveSession`, `workspaceRegistry/deleteSession`; legacy `/api/workspace.*` untouched |
 | Delete semantics | Permanent; live session flush → detach → `session/disposed`; cache write-behind awaited before row delete; subagent children cascade (origin `subagent` only — fork branches never) |
 | UI surfaces | Sidebar session/workspace browser · view options menu · row menus · confirmation dialogs · toast |
@@ -133,13 +117,11 @@ dsh-archive-manager/
   lib/index.js                    # Root host entry (empty apply; client via dsh.client)
   cordis.patch.yml                # DSH bundle patch (disables stock rows, inserts archive rows)
   scripts/check-package.mjs       # Publish preflight (pnpm build)
-  install.ps1 / rollback.ps1      # Local development install / rollback (idempotent)
   README.md / README.zh-CN.md     # Bilingual docs
-  test/                           # node:test suites (22 cases)
+  test/                           # node:test suites (19 cases)
     host.test.mjs                 # Workspace + projcache behavior, typert gateway E2E
     client.test.mjs               # Forked bundle derivation + view store
     client-remote.test.mjs        # Client Remote $mount / ctx.get integration
-    installed.test.mjs            # Smoke tests against the installed copies
   dsh-archive-manager-workspace/  # Internal: WorkspaceRegistry subclass + Remote methods
     lib/index.js
   dsh-archive-manager-projcache/  # Internal: SessionProjectionCache subclass (delete/whenIdle)
@@ -154,15 +136,15 @@ dsh-archive-manager/
 
 There is no compile step — the package is plain ESM. `pnpm build` runs a lightweight publish preflight (`scripts/check-package.mjs`) that verifies the single-package structure.
 
-Self-tests need the test tree's `node_modules` junction (created by `install.ps1`) so the real `@deepseek-ai` packages resolve to the same flat fallback as the runtime:
+Self-tests resolve the real `@deepseek-ai` packages through the test tree's `node_modules` junction to the DSH flat fallback (`%USERPROFILE%\.dsh\profiles\node_modules`, same module instances as the runtime). Create it once if it is missing:
 
 ```powershell
-.\install.ps1        # copies sources + creates junctions + local patch block (idempotent)
-pnpm build           # publish preflight
-node --test test/    # or list the four files explicitly
+New-Item -ItemType Junction -Path .\node_modules -Target "$env:USERPROFILE\.dsh\profiles\node_modules"
+pnpm build    # publish preflight
+npm test      # node:test suites
 ```
 
-The suites cover: unarchive/delete idempotency, unknown-id errors, accounting + archive-marker cleanup, transcript-directory removal, live-session flush → detach → `session/disposed`, `whenIdle`-before-row-delete ordering, subagent cascade (origin `subagent` only — fork branches with `parentSession` are never cascade-deleted), the intact legacy API surface, projcache delete/whenIdle timing, typert gateway claims + dispatch end to end, the client bundle's real-load derivation behavior, and the installed copies' real `deleteSession` flow.
+The suites cover: unarchive/delete idempotency, unknown-id errors, accounting + archive-marker cleanup, transcript-directory removal, live-session flush → detach → `session/disposed`, `whenIdle`-before-row-delete ordering, subagent cascade (origin `subagent` only — fork branches with `parentSession` are never cascade-deleted), the intact legacy API surface, projcache delete/whenIdle timing, typert gateway claims + dispatch end to end, and the client bundle's real-load derivation behavior.
 
 ## Documentation
 

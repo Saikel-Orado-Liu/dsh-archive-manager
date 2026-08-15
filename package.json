@@ -21,15 +21,13 @@
     "dsh-archive-manager-projcache",
     "dsh-archive-manager-client",
     "cordis.patch.yml",
-    "install.ps1",
-    "rollback.ps1",
     "README.md",
     "README.zh-CN.md",
     "LICENSE"
   ],
   "scripts": {
     "build": "node scripts/check-package.mjs",
-    "test": "node --test test/"
+    "test": "node --test test/*.test.mjs"
   },
   "license": "MIT",
   "dsh": {

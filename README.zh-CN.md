@@ -33,22 +33,6 @@ npx @deepseek-ai/dsh web
 
 通过 DSH CLI 安装单个 npm 包，它会应用包内根 `cordis.patch.yml`（禁用官方 `workspace`、`session-projection-cache`、`ui-workspace` 三行；插入 `workspace-archive-manager`、`session-projection-cache-archive-manager`、`ui-workspace-archive-manager`）。
 
-### 本地开发安装
-
-以管理员 PowerShell 运行 `install.ps1`（需要写 `%USERPROFILE%\.dsh` 下的目录）：
-
-```powershell
-.\install.ps1
-```
-
-它执行三个幂等步骤：
-
-1. 把三个内部包源码复制到 `%USERPROFILE%\.dsh\profiles\archive-manager\`；
-2. 在 `%USERPROFILE%\.dsh\profiles\web\node_modules\` 为三个内部包名建立 junction 链接（ESM 依赖经 Node 父目录回溯解析到 DSH 扁平 fallback `%USERPROFILE%\.dsh\profiles\node_modules`，与运行时同源、无重复模块实例）；
-3. 备份 `%USERPROFILE%\.dsh\profiles\web\cordis.patch.yml` → `cordis.patch.yml.bak-<时间戳>`，并追加本地 patch 块。
-
-**安装完成后需要重启 `dsh web` 生效**（会话会被中断；重启后按下方清单验证）。
-
 ## 概述
 
 DSH Web 内部维护着一个注册表全局的 `archivedSessionIds` 集合，但官方 UI 既无法在侧边栏看到归档会话、无法取消归档，也没有任何彻底删除会话的入口。简单地把归档会话从列表里藏掉会让它们在 GUI 里"不可恢复"；而删除一个会话会牵涉多个相互独立的存储（转录目录、workspace 记账、归档标记、投影缓存），顺序稍有差池就会留下残留或复活数据。
@@ -65,12 +49,12 @@ DSH Web 内部维护着一个注册表全局的 `archivedSessionIds` 集合，�
 |---|---|
 | 范围 | 显示归档开关、归档样式 + 守卫、取消归档、彻底删除 |
 | 交付 | 单个 npm 包；官方包零改动；web profile patch 层（`cordis.patch.yml`） |
-| 安装 / 回滚 | `npx @deepseek-ai/dsh plugin --profile web add @gamegeek-saikel/dsh-archive-manager`；本地开发用 `install.ps1` / `rollback.ps1` |
+| 安装 / 回滚 | `npx @deepseek-ai/dsh plugin --profile web add @gamegeek-saikel/dsh-archive-manager` / `... remove ...` |
 | 远程 API | Typert SRC 端点 `workspaceRegistry/unarchiveSession`、`workspaceRegistry/deleteSession`；旧 `/api/workspace.*` 路由不受影响 |
 | 删除语义 | 彻底删除；live 会话 flush → detach → `session/disposed`；缓存写回先于行删除；子代理级联（仅 `origin: "subagent"`——fork 分支绝不级联） |
 | UI 表面 | 侧边栏会话/工作区浏览器 · 视图选项菜单 · 行菜单 · 二次确认对话框 · Toast |
 | 本地化 | 简体中文（键源）+ 英文 |
-| 测试 | 4 个 `node:test` 套件共 22 个用例（host、client bundle、client remote、已安装副本） |
+| 测试 | 3 个 `node:test` 套件共 19 个用例（host、client bundle、client remote） |
 
 ## 用法
 
@@ -133,13 +117,11 @@ dsh-archive-manager/
   lib/index.js                    # 根 Host 入口（空 apply；浏览器端经 dsh.client）
   cordis.patch.yml                # DSH bundle patch（禁用官方行、插入归档行）
   scripts/check-package.mjs       # 发布预检（pnpm build）
-  install.ps1 / rollback.ps1      # 本地开发安装 / 回滚（幂等）
   README.md / README.zh-CN.md     # 双语文档
-  test/                           # node:test 套件（22 个用例）
+  test/                           # node:test 套件（19 个用例）
     host.test.mjs                 # Workspace + projcache 行为、typert gateway E2E
     client.test.mjs               # Fork bundle 派生函数 + 视图 store
     client-remote.test.mjs        # Client Remote $mount / ctx.get 集成
-    installed.test.mjs            # 对已安装副本的冒烟测试
   dsh-archive-manager-workspace/  # 内部：WorkspaceRegistry 子类 + Remote 方法
     lib/index.js
   dsh-archive-manager-projcache/  # 内部：SessionProjectionCache 子类（delete/whenIdle）
@@ -154,15 +136,15 @@ dsh-archive-manager/
 
 无编译步骤——包为纯 ESM。`pnpm build` 运行轻量发布预检（`scripts/check-package.mjs`），校验单包结构。
 
-自测需要测试树的 `node_modules` junction（由 `install.ps1` 创建），以便真实 `@deepseek-ai` 包解析到与运行时相同的扁平 fallback：
+自测通过测试树的 `node_modules` junction 解析真实 `@deepseek-ai` 包（指向 `%USERPROFILE%\.dsh\profiles\node_modules` 扁平 fallback，与运行时同源、无重复模块实例）。缺失时创建一次：
 
 ```powershell
-.\install.ps1        # 复制源码 + 建 junction + 本地 patch 块（幂等）
-pnpm build           # 发布预检
-node --test test/    # 或显式列出四个文件
+New-Item -ItemType Junction -Path .\node_modules -Target "$env:USERPROFILE\.dsh\profiles\node_modules"
+pnpm build    # 发布预检
+npm test      # node:test 套件
 ```
 
-覆盖范围：unarchive/delete 幂等性、未知 id 报错、记账与归档标记清理、转录目录删除、live 会话 flush → detach → `session/disposed`、`whenIdle` 先于缓存行删除、子会话级联（仅 `origin: "subagent"`——带 `parentSession` 的 fork 分支绝不级联删除）、原 API 面完好、projcache delete/whenIdle 时序、typert gateway 的 claim 与分发端到端、client bundle 真实加载后的派生行为，以及已安装副本的真实 `deleteSession` 流程。
+覆盖范围：unarchive/delete 幂等性、未知 id 报错、记账与归档标记清理、转录目录删除、live 会话 flush → detach → `session/disposed`、`whenIdle` 先于缓存行删除、子会话级联（仅 `origin: "subagent"`——带 `parentSession` 的 fork 分支绝不级联删除）、原 API 面完好、projcache delete/whenIdle 时序、typert gateway 的 claim 与分发端到端、client bundle 真实加载后的派生行为。
 
 ## 文档
 

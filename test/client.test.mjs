@@ -76,7 +76,7 @@ const FORK_BUNDLE = fileURLToPath(new URL("../dsh-archive-manager-client/lib/cli
 await loadBundle(RUNTIME_BUNDLE);
 const runtime = materialize("@deepseek-ai/dsh-client-runtime");
 await loadBundle(FORK_BUNDLE);
-const bundle = materialize("dsh-archive-manager-client");
+const bundle = materialize("@gamegeek-saikel/dsh-archive-manager");
 
 const t = bundle.__test;
 

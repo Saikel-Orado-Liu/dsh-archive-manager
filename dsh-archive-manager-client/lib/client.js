@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-	id: "dsh-archive-manager-client",
+	id: "@gamegeek-saikel/dsh-archive-manager",
 	factory: (require) => {
 		var module = { exports: {} };
 		var exports = module.exports;
@@ -93,7 +93,7 @@ window.__ModuleLoader__.load({
 		const ARCHIVED_CSS = ".YDXeBa_sessionRow.dsham_archivedRow,.YDXeBa_searchResultRow.dsham_archivedRow{background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 8%,transparent);border-radius:8px}.YDXeBa_sessionRow.dsham_archivedRow:hover,.YDXeBa_searchResultRow.dsham_archivedRow:hover{background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 14%,transparent)}.dsham_archivedTitle{color:var(--dsw-alias-state-error-primary)}.dsham_archivedBadge{box-sizing:border-box;color:var(--dsw-alias-state-error-primary);background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 10%,transparent);border:1px solid color-mix(in srgb,var(--dsw-alias-state-error-primary) 45%,transparent);border-radius:999px;flex:none;margin:0 8px 0 0;padding:0 6px;font-size:11px;line-height:16px;white-space:nowrap}";
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify("dsh-archive-manager/Archived.module.css") + "]") === null) {
 			const tag = document.createElement("style");
-			tag.dataset.plugin = "dsh-archive-manager-client";
+			tag.dataset.plugin = "@gamegeek-saikel/dsh-archive-manager";
 			tag.dataset.pluginCss = "dsh-archive-manager/Archived.module.css";
 			tag.textContent = ARCHIVED_CSS;
 			document.head.appendChild(tag);
@@ -439,7 +439,7 @@ window.__ModuleLoader__.load({
 		const tagId$2 = "@deepseek-ai/dsh-client-ui-workspace/Rows.module.css";
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$2) + "]") === null) {
 			const tag = document.createElement("style");
-			tag.dataset.plugin = "dsh-archive-manager-client";
+			tag.dataset.plugin = "@gamegeek-saikel/dsh-archive-manager";
 			tag.dataset.pluginCss = tagId$2;
 			tag.textContent = css$2;
 			document.head.appendChild(tag);
@@ -938,7 +938,7 @@ window.__ModuleLoader__.load({
 		const tagId$1 = "@deepseek-ai/dsh-client-ui-workspace/WorkspacePicker.module.css";
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$1) + "]") === null) {
 			const tag = document.createElement("style");
-			tag.dataset.plugin = "dsh-archive-manager-client";
+			tag.dataset.plugin = "@gamegeek-saikel/dsh-archive-manager";
 			tag.dataset.pluginCss = tagId$1;
 			tag.textContent = css$1;
 			document.head.appendChild(tag);
@@ -1108,7 +1108,7 @@ window.__ModuleLoader__.load({
 		const tagId = "@deepseek-ai/dsh-client-ui-workspace/WorkspaceBrowser.module.css";
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId) + "]") === null) {
 			const tag = document.createElement("style");
-			tag.dataset.plugin = "dsh-archive-manager-client";
+			tag.dataset.plugin = "@gamegeek-saikel/dsh-archive-manager";
 			tag.dataset.pluginCss = tagId;
 			tag.textContent = css;
 			document.head.appendChild(tag);

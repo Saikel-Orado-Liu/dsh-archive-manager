@@ -53,7 +53,7 @@ materialize("@deepseek-ai/dsh-client-runtime");
 const typertClient = materialize("@deepseek-ai/dsh-typert-registry");
 const gatewayClient = materialize("@deepseek-ai/dsh-api-gateway");
 await import(pathToFileURL(fileURLToPath(new URL("../dsh-archive-manager-client/lib/client.js", import.meta.url))).href);
-const fork = materialize("dsh-archive-manager-client");
+const fork = materialize("@gamegeek-saikel/dsh-archive-manager");
 const contribution = fork.__test.ARCHIVE_MANAGER_REMOTE;
 
 const calls = [];
