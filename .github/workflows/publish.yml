@@ -34,5 +34,17 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Check if version is already published
+        id: check
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if npm view "@gamegeek-saikel/dsh-archive-manager@$PKG_VERSION" version >/dev/null 2>&1; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Version $PKG_VERSION already published; skipping publish."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish to npm
+        if: steps.check.outputs.skip != 'true'
         run: npm publish --provenance --access public
