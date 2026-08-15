@@ -42,10 +42,10 @@ window.__ModuleLoader__.load({
 		* the legacy `/api/workspace.*` gateway untouched.
 		*/
 		const ARCHIVE_MANAGER_REMOTE = {
-			package: "dsh-archive-manager-workspace",
+			package: "@gamegeek-saikel/dsh-archive-manager",
 			descriptors: [
 				{
-					id: "dsh-archive-manager-workspace#workspaceRegistry/unarchiveSession",
+					id: "@gamegeek-saikel/dsh-archive-manager#workspaceRegistry/unarchiveSession",
 					service: "workspaceRegistry",
 					namespace: "workspaceRegistry",
 					method: "unarchiveSession",
@@ -58,13 +58,13 @@ window.__ModuleLoader__.load({
 					}],
 					result: {
 						mode: "strict",
-						typeSymbol: "dsh-archive-manager-workspace/types#ArchivedSessionIds",
+						typeSymbol: "@gamegeek-saikel/dsh-archive-manager/types#ArchivedSessionIds",
 						schema: archivedSetSchema
 					},
-					sourceLocation: { file: "dsh-archive-manager-workspace/lib/index.js", line: 1, column: 1 }
+					sourceLocation: { file: "@gamegeek-saikel/dsh-archive-manager/dsh-archive-manager-workspace/lib/index.js", line: 1, column: 1 }
 				},
 				{
-					id: "dsh-archive-manager-workspace#workspaceRegistry/deleteSession",
+					id: "@gamegeek-saikel/dsh-archive-manager#workspaceRegistry/deleteSession",
 					service: "workspaceRegistry",
 					namespace: "workspaceRegistry",
 					method: "deleteSession",
@@ -77,10 +77,10 @@ window.__ModuleLoader__.load({
 					}],
 					result: {
 						mode: "strict",
-						typeSymbol: "dsh-archive-manager-workspace/types#Deleted",
+						typeSymbol: "@gamegeek-saikel/dsh-archive-manager/types#Deleted",
 						schema: deletedSchema
 					},
-					sourceLocation: { file: "dsh-archive-manager-workspace/lib/index.js", line: 1, column: 1 }
+					sourceLocation: { file: "@gamegeek-saikel/dsh-archive-manager/dsh-archive-manager-workspace/lib/index.js", line: 1, column: 1 }
 				}
 			]
 		};

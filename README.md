@@ -8,10 +8,10 @@
 
 **DSH Archive Manager** is an archived-session management plugin for the DeepSeek Harness (DSH) Web GUI — a **"Show archived" view toggle**, **archived-session styling and guarding** (red title, tinted background, "Archived" badge, not openable), **unarchive**, and **permanent session deletion** (transcript directory, workspace accounting, archive marker, and projection cache row are all removed; live sessions are disposed first so the UI never crashes).
 
-- Host half (`dsh-archive-manager-workspace` / `dsh-archive-manager-projcache`): `WorkspaceRegistry` and `SessionProjectionCache` subclasses that add `unarchiveSession` / `deleteSession` and `delete(id)` / `whenIdle()`, exposed as Typert Remote endpoints.
-- Client half (`dsh-archive-manager-client`): a forked `dsh-client-ui-workspace` browser bundle — view toggle, archived row treatment, guarded open, row menus, confirmation dialogs, and toasts, in Simplified Chinese and English.
+- Host half (internal `dsh-archive-manager-workspace` / `dsh-archive-manager-projcache`): `WorkspaceRegistry` and `SessionProjectionCache` subclasses that add `unarchiveSession` / `deleteSession` and `delete(id)` / `whenIdle()`, exposed as Typert Remote endpoints.
+- Client half (internal `dsh-archive-manager-client`): a forked `dsh-client-ui-workspace` browser bundle — view toggle, archived row treatment, guarded open, row menus, confirmation dialogs, and toasts, in Simplified Chinese and English.
 
-The plugin ships as three drop-in packages wired through the web profile's `cordis.patch.yml` patch layer: stock rows are disabled and the archive-manager implementations are substituted. **Official package files are never modified.**
+The plugin ships as a **single npm package** (`@gamegeek-saikel/dsh-archive-manager`) containing the three implementations as internal submodules. Its `cordis.patch.yml` disables the stock rows and inserts the archive-manager rows. **Official package files are never modified.**
 
 ---
 
@@ -30,8 +30,8 @@ DSH Web keeps a registry-global `archivedSessionIds` set, but the stock UI offer
 | Property | Value |
 |---|---|
 | Scope | Show-archived toggle, archived styling + guard, unarchive, permanent delete |
-| Delivery | 3 packages; official packages untouched; web-profile patch layer (`cordis.patch.yml`) |
-| Install / rollback | `install.ps1` / `rollback.ps1` (idempotent; junction links + patch block + backup) |
+| Delivery | Single npm package; official packages untouched; web-profile patch layer (`cordis.patch.yml`) |
+| Install / rollback | `dsh plugin add @gamegeek-saikel/dsh-archive-manager`; local dev via `install.ps1` / `rollback.ps1` |
 | Remote API | Typert SRC endpoints `workspaceRegistry/unarchiveSession`, `workspaceRegistry/deleteSession`; legacy `/api/workspace.*` untouched |
 | Delete semantics | Permanent; live session flush → detach → `session/disposed`; cache write-behind awaited before row delete; subagent children cascade (origin `subagent` only — fork branches never) |
 | UI surfaces | Sidebar session/workspace browser · view options menu · row menus · confirmation dialogs · toast |
@@ -39,6 +39,16 @@ DSH Web keeps a registry-global `archivedSessionIds` set, but the stock UI offer
 | Tests | 22 cases across 4 `node:test` suites (host, client bundle, client remote, installed copies) |
 
 ## Installation
+
+### Published package (recommended)
+
+```bash
+dsh plugin --profile web add @gamegeek-saikel/dsh-archive-manager
+```
+
+This installs the single npm package through the DSH CLI, which applies the package's root `cordis.patch.yml` (disables the stock `workspace`, `session-projection-cache`, and `ui-workspace` rows; inserts `workspace-archive-manager`, `session-projection-cache-archive-manager`, and `ui-workspace-archive-manager`).
+
+### Local development install
 
 Run `install.ps1` from an elevated PowerShell (it must write under `%USERPROFILE%\.dsh`):
 
@@ -48,11 +58,11 @@ Run `install.ps1` from an elevated PowerShell (it must write under `%USERPROFILE
 
 It performs three idempotent steps:
 
-1. Copies the three package sources to `%USERPROFILE%\.dsh\profiles\archive-manager\`;
-2. Creates junction links for the three package names under `%USERPROFILE%\.dsh\profiles\web\node_modules\` (ESM dependencies resolve through the Node parent-directory walk to the DSH flat fallback `%USERPROFILE%\.dsh\profiles\node_modules`, so the same module instances as the runtime are used);
-3. Backs up `%USERPROFILE%\.dsh\profiles\web\cordis.patch.yml` → `cordis.patch.yml.bak-<timestamp>` and appends the patch block (disables the stock `workspace`, `session-projection-cache`, and `ui-workspace` rows; inserts `workspace-archive-manager`, `session-projection-cache-archive-manager`, and `ui-workspace-archive-manager`).
+1. Copies the three internal package sources to `%USERPROFILE%\.dsh\profiles\archive-manager\`;
+2. Creates junction links for the three internal package names under `%USERPROFILE%\.dsh\profiles\web\node_modules\` (ESM dependencies resolve through the Node parent-directory walk to the DSH flat fallback `%USERPROFILE%\.dsh\profiles\node_modules`, so the same module instances as the runtime are used);
+3. Backs up `%USERPROFILE%\.dsh\profiles\web\cordis.patch.yml` → `cordis.patch.yml.bak-<timestamp>` and appends the local patch block.
 
-**Restart `dsh web` to activate** (the session is interrupted; verify with the checklist in [`README.zh-CN.md`](README.zh-CN.md#重启验证清单) or below).
+**Restart `dsh web` to activate** (the session is interrupted; verify with the checklist below).
 
 ## Usage
 
@@ -111,18 +121,22 @@ The package is a full fork of the `@deepseek-ai/dsh-client-ui-workspace` bundle 
 
 ```
 dsh-archive-manager/
-  install.ps1 / rollback.ps1      # Install / rollback into a web profile (idempotent)
+  package.json                    # Single npm package @gamegeek-saikel/dsh-archive-manager
+  lib/index.js                    # Root host entry (empty apply; client via dsh.client)
+  cordis.patch.yml                # DSH bundle patch (disables stock rows, inserts archive rows)
+  scripts/check-package.mjs       # Publish preflight (pnpm build)
+  install.ps1 / rollback.ps1      # Local development install / rollback (idempotent)
   README.md / README.zh-CN.md     # Bilingual docs
   test/                           # node:test suites (22 cases)
     host.test.mjs                 # Workspace + projcache behavior, typert gateway E2E
     client.test.mjs               # Forked bundle derivation + view store
     client-remote.test.mjs        # Client Remote $mount / ctx.get integration
     installed.test.mjs            # Smoke tests against the installed copies
-  dsh-archive-manager-workspace/  # Host: WorkspaceRegistry subclass + Remote methods
+  dsh-archive-manager-workspace/  # Internal: WorkspaceRegistry subclass + Remote methods
     lib/index.js
-  dsh-archive-manager-projcache/  # Host: SessionProjectionCache subclass (delete/whenIdle)
+  dsh-archive-manager-projcache/  # Internal: SessionProjectionCache subclass (delete/whenIdle)
     lib/index.js
-  dsh-archive-manager-client/     # Client: forked ui-workspace bundle
+  dsh-archive-manager-client/     # Internal: forked ui-workspace bundle
     lib/index.js                  #   Host plugin body (empty apply)
     lib/client.js                 #   Forked browser bundle (PATCHES.md lists the 12 edits)
     PATCHES.md                    #   Fork patch notes
@@ -130,10 +144,13 @@ dsh-archive-manager/
 
 ## Development
 
-There is no build step — the packages are plain ESM. Self-tests need the test tree's `node_modules` junction (created by `install.ps1`) so the real `@deepseek-ai` packages resolve to the same flat fallback as the runtime:
+There is no compile step — the package is plain ESM. `pnpm build` runs a lightweight publish preflight (`scripts/check-package.mjs`) that verifies the single-package structure.
+
+Self-tests need the test tree's `node_modules` junction (created by `install.ps1`) so the real `@deepseek-ai` packages resolve to the same flat fallback as the runtime:
 
 ```powershell
-.\install.ps1        # copies sources + creates junctions + patch block (idempotent)
+.\install.ps1        # copies sources + creates junctions + local patch block (idempotent)
+pnpm build           # publish preflight
 node --test test/    # or list the four files explicitly
 ```
 

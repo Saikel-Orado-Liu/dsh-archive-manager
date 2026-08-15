@@ -1,6 +1,9 @@
 # dsh-archive-manager-client — fork 修补说明 (PATCHES.md)
 
-本包是 `@deepseek-ai/dsh-client-ui-workspace`（v0.1.0-rc.6）浏览器 bundle 的**整体 fork**：
+> 本目录是 `@gamegeek-saikel/dsh-archive-manager` 单 npm 包内部的 **client 子模块**，不单独发布。
+> 根包通过 `exports["./client"]` 暴露 `lib/client.js`，并通过根 `package.json` 的 `dsh.client` 声明接入浏览器。
+
+本目录是 `@deepseek-ai/dsh-client-ui-workspace`（v0.1.0-rc.6）浏览器 bundle 的**整体 fork**：
 `lib/client.js` 为自注册 bundle（`window.__ModuleLoader__.load({id, factory})`），官方包无可继承导出，
 因此整份复制并定点修补；外部 require 列表（共享模块）保持原样：
 `@deepseek-ai/dsh-client-runtime/client`、`@deepseek-ai/dsh-client-ui-primitives`、
@@ -29,7 +32,7 @@
   浏览器 API client 也是固定方法表。
 - `dsh-api-gateway`（`typert-gateway` 行）在 `/api` 上按 claim 拦截：host 侧对带
   `typertRemote` 绑定的 Service 做 SRC 反射，自动导出其 `@Remote` 方法为
-  `<namespace>/<method>` 端点。`dsh-archive-manager-workspace` 在
+  `<namespace>/<method>` 端点。`@gamegeek-saikel/dsh-archive-manager/workspace` 在
   `ArchiveWorkspaceRegistry` 上挂 binding + 两个 Remote 标记，浏览器经
   `connection.rpc.call("/api", "workspaceRegistry/…", {args}, signal)` 直达，
   旧 `workspace.*` 路由不受影响（本 fork 测试中已验证 claim 分流）。

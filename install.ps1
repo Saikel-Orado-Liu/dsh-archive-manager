@@ -1,4 +1,8 @@
-# dsh-archive-manager installer (web profile).
+# dsh-archive-manager local-development installer (web profile).
+# The published single npm package is installed with:
+#   dsh plugin --profile web add @gamegeek-saikel/dsh-archive-manager
+# This script is for working from a source checkout: it copies the three
+# internal submodules, creates junctions, and appends the local patch block.
 # Idempotent: re-running refreshes the installed copies and the patch layer.
 $ErrorActionPreference = "Stop"
 

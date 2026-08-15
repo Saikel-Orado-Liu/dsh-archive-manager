@@ -1,0 +1,17 @@
+# @gamegeek-saikel/dsh-archive-manager bundle patch: disables the stock
+# rows and substitutes the archive-manager implementations. Install the
+# published package with:
+#   dsh plugin --profile web add @gamegeek-saikel/dsh-archive-manager
+- id: workspace
+  disabled: true
+- id: session-projection-cache
+  disabled: true
+- id: ui-workspace
+  disabled: true
+- insert:
+    - id: workspace-archive-manager
+      name: '@gamegeek-saikel/dsh-archive-manager/workspace'
+    - id: session-projection-cache-archive-manager
+      name: '@gamegeek-saikel/dsh-archive-manager/projcache'
+    - id: ui-workspace-archive-manager
+      name: '@gamegeek-saikel/dsh-archive-manager'

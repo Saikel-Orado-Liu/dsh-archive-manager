@@ -1,4 +1,5 @@
-# dsh-archive-manager rollback (web profile). Idempotent.
+# dsh-archive-manager local-development rollback (web profile). Idempotent.
+# The published package can be removed with `dsh plugin --profile web remove`.
 $ErrorActionPreference = "Stop"
 
 $profiles = Join-Path $env:USERPROFILE ".dsh\profiles"

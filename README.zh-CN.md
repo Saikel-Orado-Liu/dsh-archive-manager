@@ -8,10 +8,10 @@
 
 **DSH Archive Manager** 是为 DeepSeek Harness（DSH）Web GUI 打造的归档会话管理插件——**「显示归档」视图开关**、**归档会话的样式与守卫**（红色标题、红色背景、「已归档」角标、不可打开）、**取消归档**，以及**彻底删除会话**（转录目录、workspace 记账、归档标记与投影缓存行全部清除；live 会话先 dispose，界面不崩）。
 
-- Host 半区（`dsh-archive-manager-workspace` / `dsh-archive-manager-projcache`）：`WorkspaceRegistry` 与 `SessionProjectionCache` 子类，新增 `unarchiveSession` / `deleteSession` 与 `delete(id)` / `whenIdle()`，并以 Typert Remote 端点暴露。
-- Client 半区（`dsh-archive-manager-client`）：fork 的 `dsh-client-ui-workspace` 浏览器 bundle——视图开关、归档行样式、守卫打开、行菜单、二次确认对话框与 Toast，内置简体中文与英文。
+- Host 半区（内部 `dsh-archive-manager-workspace` / `dsh-archive-manager-projcache`）：`WorkspaceRegistry` 与 `SessionProjectionCache` 子类，新增 `unarchiveSession` / `deleteSession` 与 `delete(id)` / `whenIdle()`，并以 Typert Remote 端点暴露。
+- Client 半区（内部 `dsh-archive-manager-client`）：fork 的 `dsh-client-ui-workspace` 浏览器 bundle——视图开关、归档行样式、守卫打开、行菜单、二次确认对话框与 Toast，内置简体中文与英文。
 
-插件以三个即插即用包交付，通过 web profile 的 `cordis.patch.yml` patch 层接线：禁用官方原行、替换为 archive-manager 实现。**官方包文件零改动。**
+插件以**单个 npm 包**（`@gamegeek-saikel/dsh-archive-manager`）交付，三个实现作为包内子模块。根 `cordis.patch.yml` 禁用官方原行、插入 archive-manager 行。**官方包文件零改动。**
 
 ---
 
@@ -30,8 +30,8 @@ DSH Web 内部维护着一个注册表全局的 `archivedSessionIds` 集合，�
 | 性质 | 值 |
 |---|---|
 | 范围 | 显示归档开关、归档样式 + 守卫、取消归档、彻底删除 |
-| 交付 | 3 个包；官方包零改动；web profile patch 层（`cordis.patch.yml`） |
-| 安装 / 回滚 | `install.ps1` / `rollback.ps1`（幂等；junction 链接 + patch 块 + 备份） |
+| 交付 | 单个 npm 包；官方包零改动；web profile patch 层（`cordis.patch.yml`） |
+| 安装 / 回滚 | `dsh plugin add @gamegeek-saikel/dsh-archive-manager`；本地开发用 `install.ps1` / `rollback.ps1` |
 | 远程 API | Typert SRC 端点 `workspaceRegistry/unarchiveSession`、`workspaceRegistry/deleteSession`；旧 `/api/workspace.*` 路由不受影响 |
 | 删除语义 | 彻底删除；live 会话 flush → detach → `session/disposed`；缓存写回先于行删除；子代理级联（仅 `origin: "subagent"`——fork 分支绝不级联） |
 | UI 表面 | 侧边栏会话/工作区浏览器 · 视图选项菜单 · 行菜单 · 二次确认对话框 · Toast |
@@ -39,6 +39,16 @@ DSH Web 内部维护着一个注册表全局的 `archivedSessionIds` 集合，�
 | 测试 | 4 个 `node:test` 套件共 22 个用例（host、client bundle、client remote、已安装副本） |
 
 ## 安装
+
+### 已发布包（推荐）
+
+```bash
+dsh plugin --profile web add @gamegeek-saikel/dsh-archive-manager
+```
+
+通过 DSH CLI 安装单个 npm 包，它会应用包内根 `cordis.patch.yml`（禁用官方 `workspace`、`session-projection-cache`、`ui-workspace` 三行；插入 `workspace-archive-manager`、`session-projection-cache-archive-manager`、`ui-workspace-archive-manager`）。
+
+### 本地开发安装
 
 以管理员 PowerShell 运行 `install.ps1`（需要写 `%USERPROFILE%\.dsh` 下的目录）：
 
@@ -48,9 +58,9 @@ DSH Web 内部维护着一个注册表全局的 `archivedSessionIds` 集合，�
 
 它执行三个幂等步骤：
 
-1. 把三个包源码复制到 `%USERPROFILE%\.dsh\profiles\archive-manager\`；
-2. 在 `%USERPROFILE%\.dsh\profiles\web\node_modules\` 为三个包名建立 junction 链接（ESM 依赖经 Node 父目录回溯解析到 DSH 扁平 fallback `%USERPROFILE%\.dsh\profiles\node_modules`，与运行时同源、无重复模块实例）；
-3. 备份 `%USERPROFILE%\.dsh\profiles\web\cordis.patch.yml` → `cordis.patch.yml.bak-<时间戳>`，并追加 patch 块（禁用官方 `workspace`、`session-projection-cache`、`ui-workspace` 三行；插入 `workspace-archive-manager`、`session-projection-cache-archive-manager`、`ui-workspace-archive-manager`）。
+1. 把三个内部包源码复制到 `%USERPROFILE%\.dsh\profiles\archive-manager\`；
+2. 在 `%USERPROFILE%\.dsh\profiles\web\node_modules\` 为三个内部包名建立 junction 链接（ESM 依赖经 Node 父目录回溯解析到 DSH 扁平 fallback `%USERPROFILE%\.dsh\profiles\node_modules`，与运行时同源、无重复模块实例）；
+3. 备份 `%USERPROFILE%\.dsh\profiles\web\cordis.patch.yml` → `cordis.patch.yml.bak-<时间戳>`，并追加本地 patch 块。
 
 **安装完成后需要重启 `dsh web` 生效**（会话会被中断；重启后按下方清单验证）。
 
@@ -111,18 +121,22 @@ DSH Web 内部维护着一个注册表全局的 `archivedSessionIds` 集合，�
 
 ```
 dsh-archive-manager/
-  install.ps1 / rollback.ps1      # 安装 / 回滚进 web profile（幂等）
+  package.json                    # 单个 npm 包 @gamegeek-saikel/dsh-archive-manager
+  lib/index.js                    # 根 Host 入口（空 apply；浏览器端经 dsh.client）
+  cordis.patch.yml                # DSH bundle patch（禁用官方行、插入归档行）
+  scripts/check-package.mjs       # 发布预检（pnpm build）
+  install.ps1 / rollback.ps1      # 本地开发安装 / 回滚（幂等）
   README.md / README.zh-CN.md     # 双语文档
   test/                           # node:test 套件（22 个用例）
     host.test.mjs                 # Workspace + projcache 行为、typert gateway E2E
     client.test.mjs               # Fork bundle 派生函数 + 视图 store
     client-remote.test.mjs        # Client Remote $mount / ctx.get 集成
     installed.test.mjs            # 对已安装副本的冒烟测试
-  dsh-archive-manager-workspace/  # Host：WorkspaceRegistry 子类 + Remote 方法
+  dsh-archive-manager-workspace/  # 内部：WorkspaceRegistry 子类 + Remote 方法
     lib/index.js
-  dsh-archive-manager-projcache/  # Host：SessionProjectionCache 子类（delete/whenIdle）
+  dsh-archive-manager-projcache/  # 内部：SessionProjectionCache 子类（delete/whenIdle）
     lib/index.js
-  dsh-archive-manager-client/     # Client：fork 的 ui-workspace bundle
+  dsh-archive-manager-client/     # 内部：fork 的 ui-workspace bundle
     lib/index.js                  #   Host 插件体（空 apply）
     lib/client.js                 #   Fork 浏览器 bundle（PATCHES.md 列出 12 处修补）
     PATCHES.md                    #   Fork 修补说明
@@ -130,10 +144,13 @@ dsh-archive-manager/
 
 ## 开发
 
-无构建步骤——各包均为纯 ESM。自测需要测试树的 `node_modules` junction（由 `install.ps1` 创建），以便真实 `@deepseek-ai` 包解析到与运行时相同的扁平 fallback：
+无编译步骤——包为纯 ESM。`pnpm build` 运行轻量发布预检（`scripts/check-package.mjs`），校验单包结构。
+
+自测需要测试树的 `node_modules` junction（由 `install.ps1` 创建），以便真实 `@deepseek-ai` 包解析到与运行时相同的扁平 fallback：
 
 ```powershell
-.\install.ps1        # 复制源码 + 建 junction + 打 patch 块（幂等）
+.\install.ps1        # 复制源码 + 建 junction + 本地 patch 块（幂等）
+pnpm build           # 发布预检
 node --test test/    # 或显式列出四个文件
 ```
 
