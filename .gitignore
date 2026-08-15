@@ -1,0 +1,7 @@
+# 依赖与构建缓存
+node_modules/
+*.tsbuildinfo
+
+# 本地日志与系统文件
+*.log
+.DS_Store
