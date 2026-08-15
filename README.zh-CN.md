@@ -15,36 +15,21 @@
 
 ---
 
-## 概述
-
-DSH Web 内部维护着一个注册表全局的 `archivedSessionIds` 集合，但官方 UI 既无法在侧边栏看到归档会话、无法取消归档，也没有任何彻底删除会话的入口。简单地把归档会话从列表里藏掉会让它们在 GUI 里"不可恢复"；而删除一个会话会牵涉多个相互独立的存储（转录目录、workspace 记账、归档标记、投影缓存），顺序稍有差池就会留下残留或复活数据。
-
-**Archive Manager** 用一层小而严谨的 patch 解决：
-
-- **一个可见性开关**——`showArchived` 与分组/排序存放在同一持久化 store（`dsh.workspace.view.v5`），重启浏览器保持；旧偏好反序列化后按"关闭"处理，不破坏既有体验。
-- **一条派生路径**——分组、单列表、搜索共用 `sessionVisible`，归档会话在所有界面天然一致地出现（或一致地隐藏）。
-- **一条串行化删除流程**——`deleteSession` 在注册表操作队列内按严格顺序执行：flush → detach（`session/disposed`）→ 等待投影缓存 dispose 写回落盘（`whenIdle`）→ 删除转录目录 → 清除归档标记 → 移除 workspace 记账 → 删除缓存行 → best-effort 子代理级联与 spill 清理。每个失败步骤都幂等、可重跑，重试即可自愈半删除状态。
-
-## 关键性质
-
-| 性质 | 值 |
-|---|---|
-| 范围 | 显示归档开关、归档样式 + 守卫、取消归档、彻底删除 |
-| 交付 | 单个 npm 包；官方包零改动；web profile patch 层（`cordis.patch.yml`） |
-| 安装 / 回滚 | `dsh plugin add @gamegeek-saikel/dsh-archive-manager`；本地开发用 `install.ps1` / `rollback.ps1` |
-| 远程 API | Typert SRC 端点 `workspaceRegistry/unarchiveSession`、`workspaceRegistry/deleteSession`；旧 `/api/workspace.*` 路由不受影响 |
-| 删除语义 | 彻底删除；live 会话 flush → detach → `session/disposed`；缓存写回先于行删除；子代理级联（仅 `origin: "subagent"`——fork 分支绝不级联） |
-| UI 表面 | 侧边栏会话/工作区浏览器 · 视图选项菜单 · 行菜单 · 二次确认对话框 · Toast |
-| 本地化 | 简体中文（键源）+ 英文 |
-| 测试 | 4 个 `node:test` 套件共 22 个用例（host、client bundle、client remote、已安装副本） |
-
 ## 安装
 
 ### 已发布包（推荐）
 
 ```bash
-dsh plugin --profile web add @gamegeek-saikel/dsh-archive-manager
+npx @deepseek-ai/dsh plugin --profile web add @gamegeek-saikel/dsh-archive-manager
 ```
+
+然后启动 DSH Web：
+
+```bash
+npx @deepseek-ai/dsh web
+```
+
+> 如果已全局安装 DSH CLI，也可以用 `dsh` 代替 `npx @deepseek-ai/dsh`。
 
 通过 DSH CLI 安装单个 npm 包，它会应用包内根 `cordis.patch.yml`（禁用官方 `workspace`、`session-projection-cache`、`ui-workspace` 三行；插入 `workspace-archive-manager`、`session-projection-cache-archive-manager`、`ui-workspace-archive-manager`）。
 
@@ -63,6 +48,29 @@ dsh plugin --profile web add @gamegeek-saikel/dsh-archive-manager
 3. 备份 `%USERPROFILE%\.dsh\profiles\web\cordis.patch.yml` → `cordis.patch.yml.bak-<时间戳>`，并追加本地 patch 块。
 
 **安装完成后需要重启 `dsh web` 生效**（会话会被中断；重启后按下方清单验证）。
+
+## 概述
+
+DSH Web 内部维护着一个注册表全局的 `archivedSessionIds` 集合，但官方 UI 既无法在侧边栏看到归档会话、无法取消归档，也没有任何彻底删除会话的入口。简单地把归档会话从列表里藏掉会让它们在 GUI 里"不可恢复"；而删除一个会话会牵涉多个相互独立的存储（转录目录、workspace 记账、归档标记、投影缓存），顺序稍有差池就会留下残留或复活数据。
+
+**Archive Manager** 用一层小而严谨的 patch 解决：
+
+- **一个可见性开关**——`showArchived` 与分组/排序存放在同一持久化 store（`dsh.workspace.view.v5`），重启浏览器保持；旧偏好反序列化后按"关闭"处理，不破坏既有体验。
+- **一条派生路径**——分组、单列表、搜索共用 `sessionVisible`，归档会话在所有界面天然一致地出现（或一致地隐藏）。
+- **一条串行化删除流程**——`deleteSession` 在注册表操作队列内按严格顺序执行：flush → detach（`session/disposed`）→ 等待投影缓存 dispose 写回落盘（`whenIdle`）→ 删除转录目录 → 清除归档标记 → 移除 workspace 记账 → 删除缓存行 → best-effort 子代理级联与 spill 清理。每个失败步骤都幂等、可重跑，重试即可自愈半删除状态。
+
+## 关键性质
+
+| 性质 | 值 |
+|---|---|
+| 范围 | 显示归档开关、归档样式 + 守卫、取消归档、彻底删除 |
+| 交付 | 单个 npm 包；官方包零改动；web profile patch 层（`cordis.patch.yml`） |
+| 安装 / 回滚 | `npx @deepseek-ai/dsh plugin --profile web add @gamegeek-saikel/dsh-archive-manager`；本地开发用 `install.ps1` / `rollback.ps1` |
+| 远程 API | Typert SRC 端点 `workspaceRegistry/unarchiveSession`、`workspaceRegistry/deleteSession`；旧 `/api/workspace.*` 路由不受影响 |
+| 删除语义 | 彻底删除；live 会话 flush → detach → `session/disposed`；缓存写回先于行删除；子代理级联（仅 `origin: "subagent"`——fork 分支绝不级联） |
+| UI 表面 | 侧边栏会话/工作区浏览器 · 视图选项菜单 · 行菜单 · 二次确认对话框 · Toast |
+| 本地化 | 简体中文（键源）+ 英文 |
+| 测试 | 4 个 `node:test` 套件共 22 个用例（host、client bundle、client remote、已安装副本） |
 
 ## 用法
 

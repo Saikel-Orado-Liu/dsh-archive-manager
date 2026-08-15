@@ -15,36 +15,21 @@ The plugin ships as a **single npm package** (`@gamegeek-saikel/dsh-archive-mana
 
 ---
 
-## Overview
-
-DSH Web keeps a registry-global `archivedSessionIds` set, but the stock UI offers no way to see archived sessions in the sidebar, no way to unarchive them, and no way to permanently delete a session. Naively hiding archived sessions from the list makes them unrecoverable through the GUI, and deleting a session touches several independent stores (transcript directory, workspace accounting, archive marker, projection cache) whose ordering matters.
-
-**Archive Manager** solves this with a small, disciplined patch layer:
-
-- **One visibility toggle** — `showArchived` lives in the same persisted store as grouping/sorting (`dsh.workspace.view.v5`), so the choice survives browser restarts and old preferences deserialize as "off" without breaking anything.
-- **One derivation path** — grouping, the flat list, and search all share `sessionVisible`, so archived sessions appear consistently in every surface (or disappear consistently when the toggle is off).
-- **One serialized deletion flow** — `deleteSession` runs inside the registry's operation queue with strict ordering: flush → detach (`session/disposed`) → wait for the projection cache's dispose write-behind (`whenIdle`) → remove the transcript directory → clear the archive marker → remove workspace accounting → delete the cache row → best-effort subagent cascade + spill cleanup. Every failing step is idempotent and re-runnable, so a retry heals a half-delete.
-
-## Key Properties
-
-| Property | Value |
-|---|---|
-| Scope | Show-archived toggle, archived styling + guard, unarchive, permanent delete |
-| Delivery | Single npm package; official packages untouched; web-profile patch layer (`cordis.patch.yml`) |
-| Install / rollback | `dsh plugin add @gamegeek-saikel/dsh-archive-manager`; local dev via `install.ps1` / `rollback.ps1` |
-| Remote API | Typert SRC endpoints `workspaceRegistry/unarchiveSession`, `workspaceRegistry/deleteSession`; legacy `/api/workspace.*` untouched |
-| Delete semantics | Permanent; live session flush → detach → `session/disposed`; cache write-behind awaited before row delete; subagent children cascade (origin `subagent` only — fork branches never) |
-| UI surfaces | Sidebar session/workspace browser · view options menu · row menus · confirmation dialogs · toast |
-| Locale | Simplified Chinese (source) + English |
-| Tests | 22 cases across 4 `node:test` suites (host, client bundle, client remote, installed copies) |
-
 ## Installation
 
 ### Published package (recommended)
 
 ```bash
-dsh plugin --profile web add @gamegeek-saikel/dsh-archive-manager
+npx @deepseek-ai/dsh plugin --profile web add @gamegeek-saikel/dsh-archive-manager
 ```
+
+Then start DSH Web:
+
+```bash
+npx @deepseek-ai/dsh web
+```
+
+> If you have the DSH CLI installed globally, you can use `dsh` instead of `npx @deepseek-ai/dsh`.
 
 This installs the single npm package through the DSH CLI, which applies the package's root `cordis.patch.yml` (disables the stock `workspace`, `session-projection-cache`, and `ui-workspace` rows; inserts `workspace-archive-manager`, `session-projection-cache-archive-manager`, and `ui-workspace-archive-manager`).
 
@@ -63,6 +48,29 @@ It performs three idempotent steps:
 3. Backs up `%USERPROFILE%\.dsh\profiles\web\cordis.patch.yml` → `cordis.patch.yml.bak-<timestamp>` and appends the local patch block.
 
 **Restart `dsh web` to activate** (the session is interrupted; verify with the checklist below).
+
+## Overview
+
+DSH Web keeps a registry-global `archivedSessionIds` set, but the stock UI offers no way to see archived sessions in the sidebar, no way to unarchive them, and no way to permanently delete a session. Naively hiding archived sessions from the list makes them unrecoverable through the GUI, and deleting a session touches several independent stores (transcript directory, workspace accounting, archive marker, projection cache) whose ordering matters.
+
+**Archive Manager** solves this with a small, disciplined patch layer:
+
+- **One visibility toggle** — `showArchived` lives in the same persisted store as grouping/sorting (`dsh.workspace.view.v5`), so the choice survives browser restarts and old preferences deserialize as "off" without breaking anything.
+- **One derivation path** — grouping, the flat list, and search all share `sessionVisible`, so archived sessions appear consistently in every surface (or disappear consistently when the toggle is off).
+- **One serialized deletion flow** — `deleteSession` runs inside the registry's operation queue with strict ordering: flush → detach (`session/disposed`) → wait for the projection cache's dispose write-behind (`whenIdle`) → remove the transcript directory → clear the archive marker → remove workspace accounting → delete the cache row → best-effort subagent cascade + spill cleanup. Every failing step is idempotent and re-runnable, so a retry heals a half-delete.
+
+## Key Properties
+
+| Property | Value |
+|---|---|
+| Scope | Show-archived toggle, archived styling + guard, unarchive, permanent delete |
+| Delivery | Single npm package; official packages untouched; web-profile patch layer (`cordis.patch.yml`) |
+| Install / rollback | `npx @deepseek-ai/dsh plugin --profile web add @gamegeek-saikel/dsh-archive-manager`; local dev via `install.ps1` / `rollback.ps1` |
+| Remote API | Typert SRC endpoints `workspaceRegistry/unarchiveSession`, `workspaceRegistry/deleteSession`; legacy `/api/workspace.*` untouched |
+| Delete semantics | Permanent; live session flush → detach → `session/disposed`; cache write-behind awaited before row delete; subagent children cascade (origin `subagent` only — fork branches never) |
+| UI surfaces | Sidebar session/workspace browser · view options menu · row menus · confirmation dialogs · toast |
+| Locale | Simplified Chinese (source) + English |
+| Tests | 22 cases across 4 `node:test` suites (host, client bundle, client remote, installed copies) |
 
 ## Usage
 
