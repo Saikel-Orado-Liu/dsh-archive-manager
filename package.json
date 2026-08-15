@@ -1,6 +1,6 @@
 {
   "name": "@gamegeek-saikel/dsh-archive-manager",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Archived-session management plugin for the DSH Web GUI — show archived, unarchive, and permanently delete sessions with zero changes to official packages.",
   "type": "module",
   "packageManager": "pnpm@11.21.0",
