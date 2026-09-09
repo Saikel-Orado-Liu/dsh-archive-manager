@@ -1,7 +1,7 @@
 // dsh-archive-manager client bundle self-tests (node:test).
 //
-// Materializes the forked ui-workspace bundle with the REAL client-runtime
-// bundle and the REAL static module table (react, cordis, ui-slots,
+// Materializes the forked ui-workspace bundle with the REAL dsh-client-store
+// package and the REAL static module table (react, cordis, ui-slots,
 // ui-primitives, ...) resolved from the dsh flat module fallback through the
 // test tree's `node_modules` junction. Exercises the fork's own derivation
 // functions and store through its `__test` export.
@@ -28,6 +28,10 @@ for (const spec of [
 ]) {
 	statics[spec] = await import(pathToFileURL(requireFallback.resolve(spec)).href);
 }
+// DSH 0.1.5 replaced the client-runtime bundle with the dsh-client-store
+// snapshot-store package; it is a plain ESM library (no ModuleLoader factory),
+// so it enters the static module table instead of being materialized.
+statics["@deepseek-ai/dsh-client-store"] = await import(pathToFileURL(requireFallback.resolve("@deepseek-ai/dsh-client-store")).href);
 // The primitives package imports CSS through its bundler pipeline, which
 // plain Node ESM cannot load; the fork only touches it inside component
 // bodies, so a no-op facade suffices for materialization + derivation tests.
@@ -70,11 +74,8 @@ function materialize(id) {
 	return factory(require, module, module.exports) ?? module.exports;
 }
 
-const RUNTIME_BUNDLE = fileURLToPath(new URL("../node_modules/@deepseek-ai/dsh-client-runtime/lib/client.js", import.meta.url));
 const FORK_BUNDLE = fileURLToPath(new URL("../dsh-archive-manager-client/lib/client.js", import.meta.url));
 
-await loadBundle(RUNTIME_BUNDLE);
-const runtime = materialize("@deepseek-ai/dsh-client-runtime");
 await loadBundle(FORK_BUNDLE);
 const bundle = materialize("@gamegeek-saikel/dsh-archive-manager");
 
@@ -96,7 +97,7 @@ const workspaces = [
 
 test("bundle materializes with apply/inject and the __test surface", () => {
 	assert.equal(typeof bundle.apply, "function");
-	assert.deepEqual(bundle.inject, ["slots", "sessions", "workspaces", "locale", "remote", "typert"]);
+	assert.deepEqual(bundle.inject, ["slots", "sessions", "workspaces", "locale", "remote", "remote.directoryPicker", "typert"]);
 	assert.equal(typeof t.sessionVisible, "function");
 	assert.equal(typeof t.deriveGroups, "function");
 	assert.equal(typeof t.deriveFlat, "function");

@@ -4,7 +4,8 @@ window.__ModuleLoader__.load({
 		var module = { exports: {} };
 		var exports = module.exports;
 		Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
-		let _deepseek_ai_dsh_client_runtime_client = require("@deepseek-ai/dsh-client-runtime/client");
+		let _deepseek_ai_cordis = require("@deepseek-ai/cordis");
+		let _deepseek_ai_dsh_client_runtime_client = require("@deepseek-ai/dsh-client-store");
 		let react_jsx_runtime = require("react/jsx-runtime");
 		let react = require("react");
 		let _deepseek_ai_dsh_client_ui_primitives = require("@deepseek-ai/dsh-client-ui-primitives");
@@ -97,6 +98,133 @@ window.__ModuleLoader__.load({
 			tag.dataset.pluginCss = "dsh-archive-manager/Archived.module.css";
 			tag.textContent = ARCHIVED_CSS;
 			document.head.appendChild(tag);
+		}
+		//#endregion
+		//#region dsh 0.1.5 uiWorkspace compatibility
+		/** Structured directory failure exposed to current directory UI consumers. */
+		var DirectoryBrowseError = class extends Error {
+			rpcError;
+			name = "DirectoryBrowseError";
+			constructor(rpcError) {
+				super(`directory browse failed: ${rpcError.code}: ${rpcError.message}`);
+				this.rpcError = rpcError;
+			}
+		};
+		/** Navigation service required by the current conversation/sidebar bundles. */
+		var UiWorkspaceService = class extends _deepseek_ai_cordis.Service {
+			directoryPicker;
+			workspaces;
+			sessions;
+			connecting = /* @__PURE__ */ new Map();
+			constructor(ctx, directoryPicker, workspaces, sessions) {
+				super(ctx, "uiWorkspace");
+				this.directoryPicker = directoryPicker;
+				this.workspaces = workspaces;
+				this.sessions = sessions;
+				ctx.effect(() => this.watchNavigation(), "archive-manager: Workspace navigation policy");
+			}
+			async connectWorkspace(workspaceId) {
+				const workspace = this.workspaces.list.getSnapshot().items.find((item) => item.workspaceId === workspaceId);
+				if (workspace === void 0) throw new Error(`uiWorkspace.connectWorkspace: unknown workspace ${workspaceId}`);
+				const inflight = this.connecting.get(workspaceId);
+				if (inflight !== void 0) return inflight;
+				const archived = this.workspaces.list.getSnapshot().archivedSessionIds;
+				const sessions = this.sessions.list.getSnapshot();
+				for (const id of sessions.ids) {
+					const summary = sessions.byId[id];
+					if (summary !== void 0 && summary.blank && summary.cwd === workspace.path && workspace.sessionIds.includes(summary.id) && !archived.includes(summary.id)) return summary.id;
+				}
+				const attempt = this.sessions.create({ workspaceId }).finally(() => {
+					this.connecting.delete(workspaceId);
+				});
+				this.connecting.set(workspaceId, attempt);
+				return attempt;
+			}
+			startSession(workspaceId) {
+				const workspace = this.workspaces.list.getSnapshot();
+				const sessions = this.sessions.list.getSnapshot();
+				const current = sessions.current;
+				const currentWorkspaceId = current === void 0 ? void 0 : workspace.items.find((item) => item.sessionIds.includes(current))?.workspaceId;
+				const recent = workspace.phase === "ready" && sessions.phase === "ready" ? recentWorkspace(workspace.items, sessions.byId) : void 0;
+				const target = workspaceId ?? currentWorkspaceId ?? recent;
+				if (target === void 0) {
+					this.sessions.clear();
+					return;
+				}
+				this.connectWorkspace(target).then((sessionId) => this.sessions.open(sessionId), (reason) => console.warn("new session failed:", reason));
+			}
+			async archiveSession(sessionId) {
+				await this.workspaces.archiveSession(sessionId);
+			}
+			async pickDirectory() {
+				const result = await this.directoryPicker.pick();
+				if (!result.ok) throw new Error(`directory picker failed: ${result.error.message}`);
+				return result.value;
+			}
+			async listDirectory(path, signal) {
+				const result = await this.directoryPicker.list(path, signal);
+				if (!result.ok) throw new DirectoryBrowseError(result.error);
+				return result.value;
+			}
+			async createDirectory(path, name) {
+				const result = await this.directoryPicker.createDirectory(path, name);
+				if (!result.ok) throw new DirectoryBrowseError(result.error);
+				return result.value;
+			}
+			watchNavigation() {
+				let initial = "waiting";
+				let disposed = false;
+				const reconcile = () => {
+					if (disposed || initial !== "waiting") return;
+					const workspace = this.workspaces.list.getSnapshot();
+					const sessions = this.sessions.list.getSnapshot();
+					if (workspace.phase !== "ready" || sessions.phase !== "ready") return;
+					if (sessions.current !== void 0) {
+						initial = "done";
+						return;
+					}
+					const target = recentWorkspace(workspace.items, sessions.byId);
+					if (target === void 0) {
+						initial = "done";
+						return;
+					}
+					initial = "connecting";
+					this.connectWorkspace(target).then((sessionId) => {
+						if (!disposed && this.sessions.list.getSnapshot().current === void 0) this.sessions.open(sessionId);
+						initial = "done";
+					}, (reason) => {
+						if (!disposed) {
+							initial = "waiting";
+							console.warn("initial workspace selection failed:", reason);
+						}
+					});
+				};
+				const disposeWorkspaces = this.workspaces.list.subscribe(reconcile);
+				const disposeSessions = this.sessions.list.subscribe(reconcile);
+				reconcile();
+				return () => {
+					disposed = true;
+					disposeSessions();
+					disposeWorkspaces();
+				};
+			}
+		};
+		function recentWorkspace(workspaces, sessions) {
+			let selected;
+			let selectedTime = Number.NEGATIVE_INFINITY;
+			for (const workspace of workspaces) {
+				let latest = Number.NEGATIVE_INFINITY;
+				for (const sessionId of workspace.sessionIds) {
+					const session = sessions[sessionId];
+					if (session !== void 0) latest = Math.max(latest, session.updatedAt);
+				}
+				if (latest === Number.NEGATIVE_INFINITY) latest = Date.parse(workspace.createdAt);
+				if (selected === void 0 || latest > selectedTime) {
+					selected = workspace.workspaceId;
+					selectedTime = latest;
+				}
+			}
+			return selected;
 		}
 		//#endregion
 		//#region lib/types/client/stores.js
@@ -193,6 +321,28 @@ window.__ModuleLoader__.load({
 		* (`showArchived`); their accounting slots remain either way, so
 		* unarchiving restores position.
 		*/
+				function indexSubagentDescendants(summaries) {
+			const indexed = /* @__PURE__ */ new Map();
+			for (const descendant of Object.values(summaries)) {
+				if (descendant.origin !== "subagent") continue;
+				const seen = /* @__PURE__ */ new Set();
+				let current = descendant;
+				while (current?.origin === "subagent" && current.parentId !== void 0 && !seen.has(current.id)) {
+					seen.add(current.id);
+					const aggregate = indexed.get(current.parentId);
+					if (aggregate === void 0) indexed.set(current.parentId, {
+						count: 1,
+						runningCount: descendant.running ? 1 : 0
+					});
+					else {
+						aggregate.count += 1;
+						if (descendant.running) aggregate.runningCount += 1;
+					}
+					current = summaries[current.parentId];
+				}
+			}
+			return indexed;
+		}
 		function sessionVisible(session, current, archived, showArchived) {
 			return session.origin !== "subagent" && (!archived.has(session.id) || showArchived === true) && (!session.blank || session.id === current);
 		}
@@ -289,7 +439,7 @@ window.__ModuleLoader__.load({
 		function deriveGroups(list, workspaces, archivedSessionIds, view) {
 			const archived = new Set(archivedSessionIds);
 			const expandedGroups = new Set(view.expandedGroups);
-			const descendants = (0, _deepseek_ai_dsh_client_runtime_client.indexSubagentDescendants)(list.byId);
+			const descendants = indexSubagentDescendants(list.byId);
 			const currentGroup = list.current === void 0 ? void 0 : workspaces.find((w) => w.sessionIds.includes(list.current))?.workspaceId ?? "";
 			const groups = [];
 			for (const g of groupByWorkspace(list, workspaces, archived, view.ungroupedOrder, view.showArchived)) {
@@ -322,7 +472,7 @@ window.__ModuleLoader__.load({
 		*/
 		function deriveFlat(list, archivedSessionIds, showArchived) {
 			const archived = new Set(archivedSessionIds);
-			const descendants = (0, _deepseek_ai_dsh_client_runtime_client.indexSubagentDescendants)(list.byId);
+			const descendants = indexSubagentDescendants(list.byId);
 			const rows = [];
 			for (const id of list.ids) {
 				const s = list.byId[id];
@@ -353,7 +503,7 @@ window.__ModuleLoader__.load({
 				hasMore: false
 			};
 			const archived = new Set(archivedSessionIds);
-			const descendants = (0, _deepseek_ai_dsh_client_runtime_client.indexSubagentDescendants)(list.byId);
+			const descendants = indexSubagentDescendants(list.byId);
 			const workspaceBySession = /* @__PURE__ */ new Map();
 			for (const workspace of workspaces) for (const sessionId of workspace.sessionIds) if (!workspaceBySession.has(sessionId)) workspaceBySession.set(sessionId, workspace.title);
 			const labelOf = (summary) => workspaceBySession.get(summary.id) ?? workspaceLabel(summary.cwd);
@@ -2601,6 +2751,7 @@ window.__ModuleLoader__.load({
 			"workspaces",
 			"locale",
 			"remote",
+			"remote.directoryPicker",
 			"typert"
 		];
 		/**
@@ -2614,9 +2765,12 @@ window.__ModuleLoader__.load({
 		*/
 		async function apply(ctx) {
 			const remote = ctx.get("remote");
+			const sessions = ctx.get("sessions");
+			const workspaces = ctx.get("workspaces");
+			const uiWorkspaceService = new UiWorkspaceService(ctx, ctx.remote.directoryPicker, workspaces, sessions);
 			let disposeRemote = () => {};
 			if (remote !== void 0) disposeRemote = await remote.$mount(ARCHIVE_MANAGER_REMOTE);
-			applyWorkspaceBrowser(ctx);
+			applyWorkspaceBrowser(ctx, uiWorkspaceService);
 			return async () => {
 				await disposeRemote();
 			};
@@ -2626,12 +2780,16 @@ window.__ModuleLoader__.load({
 		* ledger. Inject factories return plain callbacks; data reads use the
 		* framework's global hooks.
 		* @param ctx - client root context.
+		* @param uiWorkspaceService - DSH 0.1.5 workspace navigation service.
 		*/
-		function applyWorkspaceBrowser(ctx) {
+		function applyWorkspaceBrowser(ctx, uiWorkspaceService) {
 			ctx.effect(() => ctx.locale.register(NS, {
 				zh,
 				en
 			}), "dsh-archive-manager: dictionaries");
+			// DSH 0.1.5 resolves the sidebar workspace hook from the root slot
+			// ledger. The older fork relied on the pre-0.1.5 owner to provide it.
+			ctx.slots.provideRoot({ hooks: { workspaces: ctx.workspaces.list } });
 			const searchSessions = async (query, signal) => {
 				const result = await ctx.sessions.search(query, signal);
 				if (!result.ok) throw new Error(result.error.message);
@@ -2645,7 +2803,7 @@ window.__ModuleLoader__.load({
 			const pickerFlowSource = flowSource("conversation.hero.workspace.directoryFlow");
 			const browserInjected = () => ({
 				startSession: (workspaceId) => {
-					ctx.workspaces.startSession(workspaceId);
+					uiWorkspaceService.startSession(workspaceId);
 				},
 				open: (sessionId) => {
 					ctx.sessions.open(sessionId);

@@ -21,6 +21,10 @@ for (const spec of ["react", "react/jsx-runtime", "react-dom", "react-dom/client
 	statics[spec] = await import(pathToFileURL(requireFallback.resolve(spec)).href);
 }
 statics["@deepseek-ai/dsh-client-ui-primitives"] = new Proxy({}, { get: (t, p) => (typeof p === "string" ? (t[p] ??= () => null) : t[p]) });
+// DSH 0.1.5 replaced the client-runtime bundle with the dsh-client-store
+// snapshot-store library; it is a plain ESM module, so it joins the statics
+// table instead of being materialized through the ModuleLoader.
+statics["@deepseek-ai/dsh-client-store"] = await import(pathToFileURL(requireFallback.resolve("@deepseek-ai/dsh-client-store")).href);
 
 globalThis.window = globalThis;
 globalThis.document = { querySelector: () => null, createElement: () => ({ dataset: {}, set textContent(v) {} }), head: { appendChild: () => {} } };
@@ -46,10 +50,8 @@ function materialize(id) {
 	return factory(require, module, module.exports) ?? module.exports;
 }
 
-await loadBundle("@deepseek-ai/dsh-client-runtime");
 await loadBundle("@deepseek-ai/dsh-typert-registry");
 await loadBundle("@deepseek-ai/dsh-api-gateway");
-materialize("@deepseek-ai/dsh-client-runtime");
 const typertClient = materialize("@deepseek-ai/dsh-typert-registry");
 const gatewayClient = materialize("@deepseek-ai/dsh-api-gateway");
 await import(pathToFileURL(fileURLToPath(new URL("../dsh-archive-manager-client/lib/client.js", import.meta.url))).href);
@@ -67,7 +69,12 @@ root.provide("connection", {
 				: { archivedSessionIds: ["s2"] };
 			return { ok: true, value };
 		}
-	}
+	},
+	// DSH 0.1.5 alpha connection surface: the api-gateway client registers a
+	// generation source (unregister-capable) and starts the connection loop
+	// (returns a stop handle) at construction.
+	registerGenerationSource: () => () => {},
+	start: () => ({ stop: () => {} })
 });
 typertClient.apply(root);
 gatewayClient.apply(root);
