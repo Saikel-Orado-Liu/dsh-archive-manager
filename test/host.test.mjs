@@ -94,7 +94,10 @@ function buildRoot({ headers = [], workspaces = {}, archived = [], live = [] } =
 	const domain = new FakeDomain({ workspaces: table }, global);
 	const persistence = {
 		headers: [...canonicalHeaders],
-		list: async () => [...persistence.headers],
+		// The current DSH persistence contract answers listing SNAPSHOT records
+		// (`{ header, ... }`); the archive manager normalizes both shapes, so the
+		// fake serves the current one — that is what a real deployment mounts.
+		list: async () => persistence.headers.map((h) => ({ header: h })),
 		locate: (meta) => {
 			const path = located.get(meta.id);
 			if (path === void 0) throw new Error(`no transcript for ${meta.id}`);
@@ -262,7 +265,10 @@ test("ArchiveProjectionCache delete(id) + whenIdle ordering", async () => {
 	ctx.provide("sessions", { get: () => void 0 });
 	const cache = new ArchiveProjectionCache(ctx, { writeEveryEvents: 200, writeIntervalMs: 5000 });
 	await cache[Service.init]();
-	const session = { id: s3, header: header(s3, cwdB), events: [] };
+	// The cache binds a row to the session's log identity, which the current
+	// DSH reads from `session.header` plus `inheritedEventCount` — a session
+	// fixture must carry the exact cut or the write is contained as an error.
+	const session = { id: s3, header: header(s3, cwdB, { isSeeded: false }), inheritedEventCount: 0, events: [] };
 	await cache.put(s3, { createdAt: 1700000000000, cwd: cwdB }, { title: { ver: 1, seq: 9, val: "t" } });
 	assert.ok(table.has(s3));
 	await cache.delete(s3);

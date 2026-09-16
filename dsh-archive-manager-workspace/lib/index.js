@@ -183,8 +183,13 @@ var ArchiveWorkspaceRegistry = class extends WorkspaceRegistry {
 			if (sessions !== void 0) for (const session of sessions.list()) {
 				if (session.header.parentSession === sessionId && session.header.origin === "subagent") descendants.push(session.id);
 			}
-			for (const header of await this.ctx.sessionPersistence.list()) {
-				if (header.parentSession === sessionId && header.origin === "subagent" && !descendants.includes(header.id)) descendants.push(header.id);
+			// `sessionPersistence.list()` answers snapshot records
+			// (`{ header, ... }`) in the current DSH runtime, while earlier
+			// backends answered bare headers: normalize so a cascade never
+			// silently misses a stored child.
+			for (const record of await this.ctx.sessionPersistence.list()) {
+				const header = record?.header ?? record;
+				if (header?.parentSession === sessionId && header.origin === "subagent" && !descendants.includes(header.id)) descendants.push(header.id);
 			}
 			for (const childId of descendants) {
 				try {
