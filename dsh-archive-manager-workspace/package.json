@@ -1,7 +1,7 @@
 {
   "name": "dsh-archive-manager-workspace",
   "version": "0.1.0",
-  "description": "dsh-archive-manager host half: WorkspaceRegistry subclass adding unarchiveSession/deleteSession, exposed as Typert Remote methods",
+  "description": "dsh-archive-manager host half: WorkspaceRegistry subclass adding permanent deleteSession, exposed as a Typert Remote method",
   "private": true,
   "type": "module",
   "main": "lib/index.js",

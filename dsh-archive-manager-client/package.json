@@ -1,7 +1,7 @@
 {
   "name": "dsh-archive-manager-client",
   "version": "0.1.0",
-  "description": "dsh-archive-manager client half: forked dsh-client-ui-workspace bundle with archived-session management (show archived toggle, unarchive/delete)",
+  "description": "dsh-archive-manager client half: the session row's permanent-delete action and its confirmation dialog",
   "private": true,
   "type": "module",
   "main": "lib/index.js",
@@ -13,12 +13,11 @@
   "dsh": {
     "client": {
       "inject": [
+        "@deepseek-ai/dsh-api-gateway",
         "@deepseek-ai/dsh-client-locale",
-        "@deepseek-ai/dsh-client-store",
-        "@deepseek-ai/dsh-client-ui-conversation",
-        "@deepseek-ai/dsh-client-ui-sidebar",
-        "@deepseek-ai/dsh-typert-registry",
-        "@deepseek-ai/dsh-client-connection"
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-workspace"
       ],
       "platform": "web"
     }

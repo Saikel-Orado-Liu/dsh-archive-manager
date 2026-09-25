@@ -4,9 +4,9 @@ import { SessionProjectionCache } from "@deepseek-ai/dsh-session-projection-cach
  * dsh-archive-manager projcache half.
  *
  * `ArchiveProjectionCache` extends the shipped `SessionProjectionCache`
- * (service name `sessionProjectionCache`, same domain, same fail-soft write
- * path) and adds two public methods used by the archive manager's
- * `deleteSession`:
+ * (service name `sessionProjectionCache`, same `session_projcache` domain,
+ * same fail-soft write path) and adds the two public methods the archive
+ * manager's `deleteSession` needs:
  *
  * - `delete(id)` — permanently remove one session's cached projection row
  *   (`table.delete` on the `session_projcache` domain).
@@ -16,7 +16,9 @@ import { SessionProjectionCache } from "@deepseek-ai/dsh-session-projection-cach
  *   write to land BEFORE deleting the row, otherwise the row is written back
  *   after deletion and resurrects the cache entry.
  *
- * The default export is a Service subclass (same shape as the shipped
+ * The shipped 0.1.7 class exposes no write-behind barrier and no row removal,
+ * so this stays a subclass rather than a caller of the shipped service. The
+ * default export is a Service subclass (same shape as the shipped
  * `@deepseek-ai/dsh-session-projection-cache` package), so the profile patch
  * can substitute this package for the `session-projection-cache` row with no
  * other wiring change.

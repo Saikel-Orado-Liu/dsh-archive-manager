@@ -1,12 +1,23 @@
-# @gamegeek-saikel/dsh-archive-manager bundle patch: disables the stock
-# rows and substitutes the archive-manager implementations. Install the
-# published package with:
+# @gamegeek-saikel/dsh-archive-manager bundle patch.
+#
+# DSH 0.1.7 owns archived sessions itself: the shipped workspace registry
+# archives and unarchives, the shipped sidebar filters archived rows
+# (hide / show / only) and styles them, and pinning rides the same registry.
+# That is why this patch substitutes only the two host rows whose behavior the
+# plugin must extend, and leaves `ui-workspace` — the official browser surface —
+# exactly where the composition put it.
+#
+#   workspace                 -> ArchiveWorkspaceRegistry  (adds deleteSession)
+#   session-projection-cache  -> ArchiveProjectionCache    (adds delete + whenIdle)
+#   ui-workspace-archive-manager -> the deletion UI: one row-menu action and its
+#                                confirmation dialog, registered into the
+#                                official surface through dsh.client.
+#
+# Install the published package with:
 #   dsh plugin --profile web add @gamegeek-saikel/dsh-archive-manager
 - id: workspace
   disabled: true
 - id: session-projection-cache
-  disabled: true
-- id: ui-workspace
   disabled: true
 - insert:
     - id: workspace-archive-manager

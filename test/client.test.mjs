@@ -1,63 +1,57 @@
 // dsh-archive-manager client bundle self-tests (node:test).
 //
-// Materializes the forked ui-workspace bundle with the REAL dsh-client-store
-// package and the REAL static module table (react, cordis, ui-slots,
-// ui-primitives, ...) resolved from the dsh flat module fallback through the
-// test tree's `node_modules` junction. Exercises the fork's own derivation
-// functions and store through its `__test` export.
+// Materializes the client bundle against the DSH 0.1.7 shell seed table and
+// exercises the bundle's own surfaces: the Remote contribution, the
+// pending-deletion store, the row-menu action, and the confirmation dialog.
+// Every shared module is loaded through ONE CommonJS resolver so the bundle and
+// react-dom/server observe the same React instance (two copies would break the
+// hook dispatcher).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
-
-const FALLBACK = fileURLToPath(new URL("../node_modules", import.meta.url));
-
-// --- real static module table (mirror of dsh-client-web getStaticModules) ---
 import { createRequire } from "node:module";
+
 const requireFallback = createRequire(import.meta.url);
-const statics = {};
-for (const spec of [
-	"react",
-	"react/jsx-runtime",
-	"react-dom",
-	"react-dom/client",
-	"@deepseek-ai/cordis",
-	"@deepseek-ai/dsh-client-ui-slots",
-	"@deepseek-ai/dsh-client-web-react"
-]) {
-	statics[spec] = await import(pathToFileURL(requireFallback.resolve(spec)).href);
-}
-// DSH 0.1.5 replaced the client-runtime bundle with the dsh-client-store
-// snapshot-store package; it is a plain ESM library (no ModuleLoader factory),
-// so it enters the static module table instead of being materialized.
-statics["@deepseek-ai/dsh-client-store"] = await import(pathToFileURL(requireFallback.resolve("@deepseek-ai/dsh-client-store")).href);
-// The primitives package imports CSS through its bundler pipeline, which
-// plain Node ESM cannot load; the fork only touches it inside component
-// bodies, so a no-op facade suffices for materialization + derivation tests.
-statics["@deepseek-ai/dsh-client-ui-primitives"] = new Proxy({}, {
-	get: (target, prop) => {
-		if (typeof prop === "string") target[prop] = () => null;
-		return target[prop];
-	}
-});
+const react = requireFallback("react");
+
+// --- static module table (mirror of the 0.1.7 shell seed table, subset used here) ---
+const statics = {
+	react,
+	"react/jsx-runtime": requireFallback("react/jsx-runtime"),
+	"react-dom": requireFallback("react-dom"),
+	"react-dom/server": requireFallback("react-dom/server")
+};
+const { renderToStaticMarkup } = statics["react-dom/server"];
+// ui-primitives imports CSS through its bundler pipeline, which plain Node CJS
+// cannot load. The bundle only renders MenuItemButton/Button/Modal, so a small
+// functional stand-in keeps the surfaces renderable and assertable.
+const primitivesStandIn = {
+	MenuItemButton: ({ children, danger, separatorBefore, onSelect }) =>
+		react.createElement("button", {
+			type: "button",
+			role: "menuitem",
+			"data-danger": danger === true ? "true" : "false",
+			"data-separator": separatorBefore === true ? "true" : "false",
+			onClick: onSelect
+		}, children),
+	Button: ({ children, variant, disabled, onClick }) =>
+		react.createElement("button", { type: "button", "data-variant": variant, disabled, onClick }, children),
+	Modal: ({ open, title, description, closeLabel, children, footer }) =>
+		open === true
+			? react.createElement("div", { "data-modal": title, "data-close-label": closeLabel },
+				react.createElement("p", { "data-description": "true" }, description),
+				children,
+				react.createElement("div", { "data-footer": "true" }, footer))
+			: null
+};
+statics["@deepseek-ai/dsh-client-ui-primitives"] = primitivesStandIn;
 
 // --- browser environment stubs for bundle materialization ---
 globalThis.window = globalThis;
-const styleStub = { dataset: {}, set textContent(v) {} };
-globalThis.document = {
-	querySelector: () => null,
-	createElement: () => styleStub,
-	head: { appendChild: () => {} }
-};
-
-// --- minimal client module system ---
+globalThis.document = { querySelector: () => null, createElement: () => ({ dataset: {}, set textContent(v) {} }), head: { appendChild: () => {} } };
 const factories = new Map();
 window.__ModuleLoader__ = { load: (handoff) => { factories.set(handoff.id, handoff.factory); } };
-
-async function loadBundle(absolutePath) {
-	await import(pathToFileURL(absolutePath).href);
-}
 
 function materialize(id) {
 	const factory = factories.get(id);
@@ -65,99 +59,122 @@ function materialize(id) {
 	const module = { exports: {} };
 	const require = (spec) => {
 		if (Object.hasOwn(statics, spec)) return statics[spec];
-		const stripped = spec.endsWith("/client") ? spec.slice(0, -7) : spec;
-		if (stripped !== id && factories.has(stripped)) return materialize(stripped);
 		throw new Error(`smoke require miss: ${spec}`);
 	};
-	// The factory owns its own `module`/`exports` closure; its return value is
-	// the authoritative exports object (mirrors the real loader).
 	return factory(require, module, module.exports) ?? module.exports;
 }
 
-const FORK_BUNDLE = fileURLToPath(new URL("../dsh-archive-manager-client/lib/client.js", import.meta.url));
-
-await loadBundle(FORK_BUNDLE);
+await import(pathToFileURL(fileURLToPath(new URL("../dsh-archive-manager-client/lib/client.js", import.meta.url))).href);
 const bundle = materialize("@gamegeek-saikel/dsh-archive-manager");
-
 const t = bundle.__test;
 
-function summary(id, extra = {}) {
-	return { id, displayTitle: `Title-${id}`, origin: "root", blank: false, running: false, updatedAt: 1, ...extra };
-}
-
-const list = {
-	current: void 0,
-	ids: ["s1", "s2", "s3"],
-	byId: { s1: summary("s1"), s2: summary("s2"), s3: summary("s3") }
+/** The zh translate seat the surfaces receive through their locale registration. */
+const zhT = (key, params) => {
+	const text = t.zh[key] ?? key;
+	return Object.entries(params ?? {}).reduce((acc, [name, value]) => acc.replaceAll(`{${name}}`, String(value)), text);
 };
-const workspaces = [
-	{ workspaceId: "w1", path: "D:\\proj-a", title: "proj-a", createdAt: "2026-01-01T00:00:00.000Z", sessionIds: ["s1", "s2"] },
-	{ workspaceId: "w2", path: "D:\\proj-b", title: "proj-b", createdAt: "2026-01-01T00:00:00.000Z", sessionIds: ["s3"] }
-];
 
 test("bundle materializes with apply/inject and the __test surface", () => {
 	assert.equal(typeof bundle.apply, "function");
-	assert.deepEqual(bundle.inject, ["slots", "sessions", "workspaces", "locale", "remote", "remote.directoryPicker", "typert"]);
-	assert.equal(typeof t.sessionVisible, "function");
-	assert.equal(typeof t.deriveGroups, "function");
-	assert.equal(typeof t.deriveFlat, "function");
-	assert.equal(typeof t.deriveSearchResults, "function");
+	assert.deepEqual(bundle.inject, ["slots", "locale", "remote"]);
+	assert.equal(typeof t.callDelete, "function");
+	assert.equal(typeof t.SessionDeleteMenuItem, "function");
+	assert.equal(typeof t.DeleteSessionDialog, "function");
+	// The bundle requires nothing beyond the shared platform modules.
+	assert.equal(typeof bundle.NS, "string");
 });
 
-test("sessionVisible: archived hidden by default, visible with showArchived", () => {
-	const archived = new Set(["s2"]);
-	assert.equal(t.sessionVisible(summary("s1"), void 0, archived, false), true);
-	assert.equal(t.sessionVisible(summary("s2"), void 0, archived, false), false);
-	assert.equal(t.sessionVisible(summary("s2"), void 0, archived, true), true);
-	assert.equal(t.sessionVisible(summary("s2"), void 0, archived), false); // default undefined
-	assert.equal(t.sessionVisible(summary("s9", { origin: "subagent" }), void 0, archived, true), false);
+test("Remote contribution declares exactly the deleteSession endpoint with strict codecs", () => {
+	assert.equal(t.ARCHIVE_MANAGER_REMOTE.package, "@gamegeek-saikel/dsh-archive-manager");
+	assert.equal(t.ARCHIVE_MANAGER_REMOTE.descriptors.length, 1);
+	const [descriptor] = t.ARCHIVE_MANAGER_REMOTE.descriptors;
+	assert.equal(descriptor.service, "workspaceRegistry");
+	assert.equal(descriptor.namespace, "workspaceRegistry");
+	assert.equal(descriptor.method, "deleteSession");
+	assert.deepEqual(descriptor.invocation, { kind: "direct" });
+	assert.equal(descriptor.parameters.length, 1);
+	assert.equal(descriptor.parameters[0].name, "sessionId");
+	assert.equal(descriptor.parameters[0].codec.mode, "strict");
+	assert.equal(descriptor.result.mode, "strict");
+	// The 0.1.7 generated contract is { mode, typeSymbol, create() }: the
+	// Client gateway validates that shape before a contribution may mount.
+	assert.equal(typeof descriptor.parameters[0].codec.create, "function");
+	assert.equal(typeof descriptor.result.create, "function");
+	assert.ok(descriptor.parameters[0].codec.typeSymbol.length > 0);
+	assert.ok(descriptor.result.typeSymbol.length > 0);
+	// the codec shims validate when the factory is exercised
+	const sessionId = descriptor.parameters[0].codec.create();
+	assert.equal(sessionId.parse("s1"), "s1");
+	assert.throws(() => sessionId.parse(""), TypeError);
+	assert.throws(() => sessionId.parse(7), TypeError);
+	const deleted = descriptor.result.create();
+	assert.deepEqual(deleted.parse({ deleted: true }), { deleted: true });
+	assert.throws(() => deleted.parse({ deleted: false }), TypeError);
+	assert.throws(() => deleted.parse(null), TypeError);
 });
 
-test("deriveGroups: archived rows appear in their workspace group with the archived flag when shown", () => {
-	const archived = ["s2"];
-	const view = { expandedGroups: ["w1", "w2"], showArchived: false };
-	const hidden = t.deriveGroups(list, workspaces, archived, view);
-	const w1 = hidden.find((g) => g.workspaceId === "w1");
-	assert.deepEqual(w1.sessions.map((s) => s.id), ["s1"]);
-	const shown = t.deriveGroups(list, workspaces, archived, { ...view, showArchived: true });
-	const w1b = shown.find((g) => g.workspaceId === "w1");
-	assert.deepEqual(w1b.sessions.map((s) => s.id), ["s1", "s2"]);
-	assert.equal(w1b.sessions.find((s) => s.id === "s2").archived, true);
-	assert.equal(w1b.sessions.find((s) => s.id === "s1").archived, false);
+test("pending-deletion store notifies subscribers and dedupes the same id", () => {
+	const seen = [];
+	const unsubscribe = t.subscribe(() => seen.push(t.getPending()));
+	assert.equal(t.getPending(), null);
+	t.setPending("s1");
+	assert.equal(t.getPending(), "s1");
+	t.setPending("s1"); // same request: no second notification
+	assert.deepEqual(seen, ["s1"]);
+	t.setPending("s2");
+	assert.deepEqual(seen, ["s1", "s2"]);
+	unsubscribe();
+	t.setPending(null);
+	assert.deepEqual(seen, ["s1", "s2"], "unsubscribed listeners stop hearing the store");
+	assert.equal(t.getPending(), null);
 });
 
-test("deriveFlat: showArchived toggles archived rows with the flag", () => {
-	const archived = ["s2"];
-	assert.deepEqual(t.deriveFlat(list, archived, false).map((r) => r.id).sort(), ["s1", "s3"]);
-	const rows = t.deriveFlat(list, archived, true);
-	assert.deepEqual(rows.map((r) => r.id).sort(), ["s1", "s2", "s3"]);
-	assert.equal(rows.find((r) => r.id === "s2").archived, true);
+test("the row-menu action is a destructive, group-starting entry that closes the menu and raises the request", () => {
+	const closed = [];
+	const requested = [];
+	const element = t.SessionDeleteMenuItem({
+		sessionId: "s1",
+		useMenuOpenState: () => [true, (open) => closed.push(open)],
+		requestDelete: (sessionId) => requested.push(sessionId),
+		t: zhT
+	});
+	assert.equal(element.type, primitivesStandIn.MenuItemButton);
+	assert.equal(element.props.danger, true);
+	assert.equal(element.props.separatorBefore, true);
+	assert.equal(element.props.children, "删除会话");
+	element.props.onSelect();
+	assert.deepEqual(closed, [false]);
+	assert.deepEqual(requested, ["s1"]);
 });
 
-test("deriveSearchResults: showArchived toggles archived matches with the flag", () => {
-	const archived = ["s2"];
-	const content = { items: [], hasMore: false };
-	const base = { list, workspaces, query: "Title", archivedSessionIds: archived, content, limit: 50 };
-	const hidden = t.deriveSearchResults(base.list, base.workspaces, base.query, base.archivedSessionIds, base.content, base.limit, false);
-	assert.deepEqual(hidden.items.map((r) => r.id).sort(), ["s1", "s3"]);
-	const shown = t.deriveSearchResults(base.list, base.workspaces, base.query, base.archivedSessionIds, base.content, base.limit, true);
-	assert.deepEqual(shown.items.map((r) => r.id).sort(), ["s1", "s2", "s3"]);
-	assert.equal(shown.items.find((r) => r.id === "s2").archived, true);
+test("the confirmation dialog renders nothing with no request and the full copy with one", () => {
+	const props = { deleteSession: () => Promise.resolve({ deleted: true }), t: zhT };
+	const render = () => renderToStaticMarkup(react.createElement(t.DeleteSessionDialog, props));
+	t.setPending(null);
+	assert.equal(render(), "");
+	t.setPending("s1");
+	const markup = render();
+	t.setPending(null);
+	assert.match(markup, /data-modal="删除会话"/);
+	assert.match(markup, /此操作不可撤销/);
+	assert.match(markup, /分叉出的会话是独立会话/);
+	assert.match(markup, /data-close-label="关闭"/);
+	assert.match(markup, /永久删除/);
+	assert.match(markup, /取消/);
 });
 
-test("view store: showArchived default false, persists toggles, same store family as groupBy/orderBy", () => {
-	const handle = t.createWorkspaceViewStore();
-	const store = handle.create(void 0);
-	assert.equal(store.getSnapshot().showArchived, false);
-	store.actions.setShowArchived(true);
-	assert.equal(store.getSnapshot().showArchived, true);
-	store.actions.setShowArchived("yes");
-	assert.equal(store.getSnapshot().showArchived, false); // coerced to boolean
-	store.actions.setShowArchived(false);
-	assert.equal(store.getSnapshot().showArchived, false);
-	// same persistence family as the existing view prefs
-	const spec = handle.spec;
-	assert.equal(spec.persist, "dsh.workspace.view.v5");
-	assert.equal(typeof spec.actions.setGroupBy, "function");
-	assert.equal(typeof spec.actions.setShowArchived, "function");
+test("callDelete unwraps the Remote result and folds a failure into a throw", async () => {
+	const calls = [];
+	const ctx = {
+		get: (key) => key === "remote.workspaceRegistry"
+			? { deleteSession: async (sessionId) => { calls.push(sessionId); return { ok: true, value: { deleted: true } }; } }
+			: void 0
+	};
+	assert.deepEqual(await t.callDelete(ctx, "s1"), { deleted: true });
+	assert.deepEqual(calls, ["s1"]);
+	const failure = Object.assign(new Error("no such session"), { code: "session/unknown" });
+	const failing = { get: () => ({ deleteSession: async () => ({ ok: false, error: failure }) }) };
+	await assert.rejects(() => t.callDelete(failing, "s1"), /no such session/);
+	const unmounted = { get: () => void 0 };
+	await assert.rejects(() => t.callDelete(unmounted, "s1"), /not mounted/);
 });

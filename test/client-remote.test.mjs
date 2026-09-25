@@ -1,12 +1,11 @@
 // dsh-archive-manager client Remote integration test (node:test).
 //
-// Reproduces the reported browser failure "cannot get property
-// remote.workspaceRegistry without inject": mounts the REAL client typert
-// registry and api-gateway bundles, $mounts the fork's archive-manager
-// contribution from a plugin fiber (like the fork's own apply), and verifies
-// that `ctx.get("remote.workspaceRegistry")` resolves and dispatches through
-// `connection.rpc.call` — while the proxy property path indeed requires the
-// service name in inject (and cannot be declared by the mounting fiber).
+// Mounts the REAL client typert registry and api-gateway bundles, $mounts the
+// archive-manager contribution from a plugin fiber (like the bundle's own
+// apply), and verifies that `ctx.get("remote.workspaceRegistry")` resolves and
+// dispatches through `connection.rpc.call` — while the proxy property path
+// indeed requires the service name in inject (and cannot be declared by the
+// mounting fiber).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
@@ -17,17 +16,28 @@ import { Context } from "@deepseek-ai/cordis";
 
 const requireFallback = createRequire(import.meta.url);
 const statics = {};
-for (const spec of ["react", "react/jsx-runtime", "react-dom", "react-dom/client", "@deepseek-ai/cordis", "@deepseek-ai/dsh-client-ui-slots", "@deepseek-ai/dsh-client-web-react"]) {
+// The modules these three bundles actually require: cordis (for the gateway
+// and typert client halves), react (for the archive-manager surfaces), and the
+// primitives stand-in below. dsh-client-store is deliberately absent — the
+// 0.1.7 deletion UI does not touch it.
+for (const spec of ["react", "react/jsx-runtime", "@deepseek-ai/cordis"]) {
 	statics[spec] = await import(pathToFileURL(requireFallback.resolve(spec)).href);
 }
-statics["@deepseek-ai/dsh-client-ui-primitives"] = new Proxy({}, { get: (t, p) => (typeof p === "string" ? (t[p] ??= () => null) : t[p]) });
-// DSH 0.1.5 replaced the client-runtime bundle with the dsh-client-store
-// snapshot-store library; it is a plain ESM module, so it joins the statics
-// table instead of being materialized through the ModuleLoader.
-statics["@deepseek-ai/dsh-client-store"] = await import(pathToFileURL(requireFallback.resolve("@deepseek-ai/dsh-client-store")).href);
+statics["@deepseek-ai/dsh-client-ui-primitives"] = { MenuItemButton: () => null, Button: () => null, Modal: () => null };
 
 globalThis.window = globalThis;
-globalThis.document = { querySelector: () => null, createElement: () => ({ dataset: {}, set textContent(v) {} }), head: { appendChild: () => {} } };
+globalThis.document = { querySelector: () => null, createElement: () => ({ dataset: {}, set textContent(v) {} }), head: { appendChild: () => {} }, baseURI: "http://127.0.0.1:3080/" };
+// The 0.1.7 gateway client builds its Remote-stream mux socket eagerly at
+// `apply`. Pin the transport base and install an inert socket so the test never
+// opens a real connection to the running harness.
+globalThis.__DSH_TRANSPORT__ = { streamBaseUrl: "http://127.0.0.1:3080/" };
+globalThis.WebSocket = class InertWebSocket {
+	constructor() { this.readyState = 0; }
+	close() {}
+	send() {}
+	addEventListener() {}
+	removeEventListener() {}
+};
 const factories = new Map();
 window.__ModuleLoader__ = { load: (h) => { factories.set(h.id, h.factory); } };
 
@@ -55,8 +65,8 @@ await loadBundle("@deepseek-ai/dsh-api-gateway");
 const typertClient = materialize("@deepseek-ai/dsh-typert-registry");
 const gatewayClient = materialize("@deepseek-ai/dsh-api-gateway");
 await import(pathToFileURL(fileURLToPath(new URL("../dsh-archive-manager-client/lib/client.js", import.meta.url))).href);
-const fork = materialize("@gamegeek-saikel/dsh-archive-manager");
-const contribution = fork.__test.ARCHIVE_MANAGER_REMOTE;
+const bundle = materialize("@gamegeek-saikel/dsh-archive-manager");
+const contribution = bundle.__test.ARCHIVE_MANAGER_REMOTE;
 
 const calls = [];
 const root = new Context();
@@ -64,13 +74,10 @@ root.provide("connection", {
 	rpc: {
 		async call(channel, endpoint, payload, signal) {
 			calls.push({ channel, endpoint, payload, signal });
-			const value = endpoint === "workspaceRegistry/deleteSession"
-				? { deleted: true }
-				: { archivedSessionIds: ["s2"] };
-			return { ok: true, value };
+			return { ok: true, value: { deleted: true } };
 		}
 	},
-	// DSH 0.1.5 alpha connection surface: the api-gateway client registers a
+	// The 0.1.7 alpha connection surface: the api-gateway client registers a
 	// generation source (unregister-capable) and starts the connection loop
 	// (returns a stop handle) at construction.
 	registerGenerationSource: () => () => {},
@@ -90,20 +97,20 @@ test("$mount registers the namespace; ctx.get resolves it and dispatches through
 	try {
 		const registry = root.get("remote.workspaceRegistry");
 		assert.ok(registry !== void 0, "namespace service resolves via ctx.get");
-		const result = await registry.unarchiveSession("s1");
-		assert.deepEqual(result, { ok: true, value: { archivedSessionIds: ["s2"] } });
+		const result = await registry.deleteSession("s1");
+		assert.deepEqual(result, { ok: true, value: { deleted: true } });
 		assert.equal(calls.length, 1);
 		assert.equal(calls[0].channel, "/api");
-		assert.equal(calls[0].endpoint, "workspaceRegistry/unarchiveSession");
+		assert.equal(calls[0].endpoint, "workspaceRegistry/deleteSession");
 		// the gateway builds args as a null-prototype object; compare JSON-normalized
 		assert.deepEqual(JSON.parse(JSON.stringify(calls[0].payload)), { args: { sessionId: "s1" } });
-		const result2 = await registry.deleteSession("s1");
-		assert.deepEqual(result2, { ok: true, value: { deleted: true } });
-		assert.equal(calls[1].endpoint, "workspaceRegistry/deleteSession");
-		assert.deepEqual(JSON.parse(JSON.stringify(calls[1].payload)), { args: { sessionId: "s1" } });
 	} finally {
 		await fiber.dispose();
 	}
+});
+
+test("the contribution declares no archived-session endpoint (DSH 0.1.7 ships those)", () => {
+	assert.deepEqual(contribution.descriptors.map((d) => d.method), ["deleteSession"]);
 });
 
 test("proxy property path (ctx.remote.workspaceRegistry) without inject declares the missing-service error", async () => {
@@ -124,7 +131,7 @@ test("proxy property path works when the service name is declared in inject (con
 		apply: async (ctx) => {
 			// a consumer fiber never mounts the contribution itself; here the
 			// root-mounted namespace (previous tests) satisfies the inject
-			assert.equal(typeof ctx.remote.workspaceRegistry.unarchiveSession, "function");
+			assert.equal(typeof ctx.remote.workspaceRegistry.deleteSession, "function");
 		}
 	});
 	await fiber;

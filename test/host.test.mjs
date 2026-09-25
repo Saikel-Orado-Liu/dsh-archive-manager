@@ -90,14 +90,16 @@ function buildRoot({ headers = [], workspaces = {}, archived = [], live = [] } =
 		updatedAt: "2026-01-01T00:00:00.000Z",
 		...record
 	}])));
-	const global = { initialized: true, workspaceIds: Object.keys(workspacesCanonical), archivedSessionIds: [...archived] };
+	const global = { initialized: true, workspaceIds: Object.keys(workspacesCanonical), archivedSessionIds: [...archived], pinnedSessionIds: [] };
 	const domain = new FakeDomain({ workspaces: table }, global);
 	const persistence = {
 		headers: [...canonicalHeaders],
 		// The current DSH persistence contract answers listing SNAPSHOT records
 		// (`{ header, ... }`); the archive manager normalizes both shapes, so the
 		// fake serves the current one — that is what a real deployment mounts.
-		list: async () => persistence.headers.map((h) => ({ header: h })),
+		// The listing is derived from what is actually on disk, exactly like the
+		// JSONL backend: a deleted transcript stops being listed.
+		list: async () => persistence.headers.filter((h) => existsSync(located.get(h.id))).map((h) => ({ header: h })),
 		locate: (meta) => {
 			const path = located.get(meta.id);
 			if (path === void 0) throw new Error(`no transcript for ${meta.id}`);
@@ -160,27 +162,27 @@ test("workspace registry init with the fakes", async () => {
 	assert.deepEqual(env.global.archivedSessionIds, []);
 });
 
-test("archiveSession + unarchiveSession round trip (idempotent, durable)", async () => {
+test("shipped archive/unarchive/pin behavior is inherited unchanged", async () => {
 	const env = buildRoot({
 		headers: [header(s1, cwdA), header(s2, cwdA)],
 		workspaces: { [A]: workspace("D:\\proj-a", [s1, s2]) }
 	});
 	const registry = await mountWorkspaceRegistry(env);
+	// DSH 0.1.7 ships the archive set itself; the fork must not shadow it.
 	await registry.archiveSession(s1);
 	assert.deepEqual(env.global.archivedSessionIds, [s1]);
 	await registry.archiveSession(s1); // idempotent
 	assert.deepEqual(env.global.archivedSessionIds, [s1]);
-	const first = await registry.unarchiveSession(s1);
-	assert.deepEqual(first.archivedSessionIds, []);
+	// The shipped unarchive answers void and runs no existence check.
+	assert.equal(await registry.unarchiveSession(s1), void 0);
 	assert.deepEqual(env.global.archivedSessionIds, []);
-	const second = await registry.unarchiveSession(s1); // idempotent no-op
-	assert.deepEqual(second.archivedSessionIds, []);
-});
-
-test("unarchiveSession rejects unknown sessions", async () => {
-	const env = buildRoot({ headers: [header(s1, cwdA)], workspaces: { [A]: workspace("D:\\proj-a", [s1]) } });
-	const registry = await mountWorkspaceRegistry(env);
-	await assert.rejects(() => registry.unarchiveSession(sUnknown), WorkspaceUnknownSessionError);
+	assert.equal(await registry.unarchiveSession(s1), void 0); // idempotent no-op
+	assert.equal(await registry.unarchiveSession(sUnknown), void 0); // unknown ids stay a no-op
+	// Pinning is part of the same shipped registry.
+	await registry.pinSession(s2);
+	assert.deepEqual(registry.pinnedSessionIds, [s2]);
+	await registry.unpinSession(s2);
+	assert.deepEqual(registry.pinnedSessionIds, []);
 });
 
 test("deleteSession rejects unknown sessions", async () => {
@@ -233,6 +235,41 @@ test("deleteSession on a live session flushes, detaches, emits session/disposed,
 	assert.equal(existsSync(env.located.get(sLive)), false, "live session transcript dir removed");
 });
 
+test("deleteSession on a COLD session relays api-session/removed and forgets the identity", async () => {
+	const env = buildRoot({
+		headers: [header(s1, cwdA), header(s2, cwdA)],
+		workspaces: { [A]: workspace("D:\\proj-a", [s1, s2]) }
+	});
+	const registry = await mountWorkspaceRegistry(env);
+	// The shipped session-controller emits this frame for a live disposal; a cold
+	// delete has no disposal, so the row would never leave the browser list.
+	const frames = [];
+	env.ctx.on("api-session/removed", (id) => frames.push(id));
+	await registry.deleteSession(s2);
+	assert.deepEqual(frames, [s2], "the cold delete relays exactly one removal frame");
+	assert.deepEqual(env.table.get(A).sessionIds, [s1]);
+	// The header index is rebuilt from storage, so the deleted identity is no
+	// longer "known" and a later bootstrap cannot re-index it into 「未分组」.
+	assert.equal(await registry.sessionKnown(s2), false);
+	assert.equal(registry.list().length, 1);
+});
+
+test("deleteSession on a LIVE session does not double-relay the removal frame", async () => {
+	const liveSession = { id: sLive, header: header(sLive, cwdA), events: [] };
+	const env = buildRoot({
+		headers: [header(s1, cwdA), header(sLive, cwdA)],
+		workspaces: { [A]: workspace("D:\\proj-a", [s1, sLive]) },
+		live: [liveSession]
+	});
+	// Emulate the shipped relay, which forwards the disposal to the browser.
+	env.ctx.on("session/disposed", (session) => env.ctx.emit("api-session/removed", session.id));
+	const frames = [];
+	env.ctx.on("api-session/removed", (id) => frames.push(id));
+	const registry = await mountWorkspaceRegistry(env);
+	await registry.deleteSession(sLive);
+	assert.deepEqual(frames, [sLive], "the disposal relay is the only frame sent");
+});
+
 test("deleteSession cascades to SUBAGENT children (origin = subagent) but never to fork branches", async () => {
 	// s5: subagent child of s4 (cascade-deleted); s2: fork branch of s4
 	// (parentSession set, no subagent origin — an independent user session)
@@ -281,7 +318,7 @@ test("ArchiveProjectionCache delete(id) + whenIdle ordering", async () => {
 	assert.ok(!table.has(s3));
 });
 
-test("typert gateway SRC: claims + dispatch unarchiveSession/deleteSession end to end", async () => {
+test("typert gateway SRC: claim + dispatch for deleteSession end to end", async () => {
 	const env = buildRoot({
 		headers: [header(s1, cwdA), header(s2, cwdA), header(s3, cwdB)],
 		workspaces: { [A]: workspace("D:\\proj-a", [s1, s2]), [B]: workspace("D:\\proj-b", [s3]) }
@@ -301,16 +338,10 @@ test("typert gateway SRC: claims + dispatch unarchiveSession/deleteSession end t
 	await tick(); // ctx.inject registers the interceptor asynchronously
 	assert.ok(captured, "gateway must register a /api interceptor");
 	assert.equal(captured.channel, "/api");
-	// SRC claims for the new endpoints
-	assert.equal(captured.matches("workspaceRegistry/unarchiveSession"), true);
+	// The one added endpoint is claimed; everything else stays where it was.
 	assert.equal(captured.matches("workspaceRegistry/deleteSession"), true);
-	// legacy endpoints stay with the apiproxy (not claimed)
 	assert.equal(captured.matches("workspace.archiveSession"), false);
 	assert.equal(captured.matches("workspace.list"), false);
-	// dispatch: unarchiveSession
-	const unarchive = await captured.handler("workspaceRegistry/unarchiveSession", { args: { sessionId: s1 } }, void 0);
-	assert.equal(unarchive.ok, true);
-	assert.deepEqual(unarchive.value, { archivedSessionIds: [] });
 	// dispatch: deleteSession
 	const del = await captured.handler("workspaceRegistry/deleteSession", { args: { sessionId: s3 } }, void 0);
 	assert.equal(del.ok, true);
@@ -322,7 +353,7 @@ test("typert gateway SRC: claims + dispatch unarchiveSession/deleteSession end t
 	assert.equal(unknown.ok, false);
 	assert.match(unknown.error.message, /no such session/);
 	// dispatch: missing args is rejected
-	const bad = await captured.handler("workspaceRegistry/unarchiveSession", { args: {} }, void 0);
+	const bad = await captured.handler("workspaceRegistry/deleteSession", { args: {} }, void 0);
 	assert.equal(bad.ok, false);
 });
 

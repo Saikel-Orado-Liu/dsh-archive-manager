@@ -8,16 +8,11 @@ import { bindTypertRemote, Remote } from "@deepseek-ai/dsh-typert-protocol";
 import { sessionDir } from "@deepseek-ai/dsh-spill-local";
 //#region lib/types/index.js
 /**
- * dsh-archive-manager host half — archive session management.
+ * dsh-archive-manager host half — permanent session deletion.
  *
- * `ArchiveWorkspaceRegistry` extends the shipped `WorkspaceRegistry`
- * (service name `workspaceRegistry`, one domain open, same accounting
- * invariants) and adds two durable operations:
- *
- * - `unarchiveSession(sessionId)` — removes the id from the registry-global
- *   `archivedSessionIds` set. Archiving never moves the accounting seat, so
- *   unarchiving restores the session at its original workspace position.
- *   Idempotent: a session that is not archived resolves without writing.
+ * `ArchiveWorkspaceRegistry` extends the shipped `WorkspaceRegistry` (service
+ * name `workspaceRegistry`, one domain open, every accounting invariant
+ * inherited unchanged) and adds ONE durable operation:
  *
  * - `deleteSession(sessionId)` — PERMANENT deletion, no trace left on disk:
  *   1. validate the session is known (live, header-indexed, or persisted);
@@ -28,7 +23,8 @@ import { sessionDir } from "@deepseek-ai/dsh-spill-local";
  *      the final cache row is durable BEFORE it is deleted;
  *   4. remove the transcript directory (the whole `session-<id>` dir under
  *      the persistence root, located through `sessionPersistence.locate`);
- *   5. remove the id from `archivedSessionIds` (durable `setState`);
+ *   5. remove the id from the registry-global archive and pin sets (durable
+ *      `setState`);
  *   6. remove the id from every workspace record's `sessionIds` and refresh
  *      the in-memory entity snapshots (durable `table.update`, so the host
  *      stream pushes `host/workspace-changed` to every browser);
@@ -42,11 +38,17 @@ import { sessionDir } from "@deepseek-ai/dsh-spill-local";
  * idempotent and re-runnable, so a retry heals); cascade/spill are
  * best-effort by design.
  *
- * The two new methods are also exported as Typert Remote endpoints
- * (`workspaceRegistry/unarchiveSession`, `workspaceRegistry/deleteSession`)
- * through the service's `typertRemote` binding + `Remote` markers — the
- * browser reaches them through the standard typert gateway SRC path, keeping
- * the legacy `/api/workspace.*` gateway untouched.
+ * DSH 0.1.7 ships archive/unarchive, the archived-row filter, pinning, and the
+ * workspace activity gate itself, so this fork deliberately adds none of them:
+ * `archiveSession` / `unarchiveSession` / `pinSession` / `unpinSession` are
+ * inherited from the shipped class and behave exactly as the official rows
+ * expect. Permanent deletion is the one capability the shipped registry still
+ * lacks.
+ *
+ * The method is also exported as a Typert Remote endpoint
+ * (`workspaceRegistry/deleteSession`) through the service's `typertRemote`
+ * binding + a `Remote` marker — the browser reaches it through the standard
+ * typert gateway path, keeping the legacy `/api/workspace.*` gateway untouched.
  *
  * The default export is a Service subclass (same shape as the shipped
  * `@deepseek-ai/dsh-workspace` package), so the profile patch can substitute
@@ -67,6 +69,7 @@ function markRemoteMethod(instance, method) {
 	Remote(method)(void 0, context);
 }
 var ArchiveWorkspaceRegistry = class extends WorkspaceRegistry {
+	/** The shipped requirements plus the cache whose row deletion must be durable. */
 	static inject = [
 		"storageDomain",
 		"sessionPersistence",
@@ -75,34 +78,12 @@ var ArchiveWorkspaceRegistry = class extends WorkspaceRegistry {
 	constructor(ctx) {
 		super(ctx);
 		this.typertRemote = bindTypertRemote(this, this.name);
-		markRemoteMethod(this, "unarchiveSession");
 		markRemoteMethod(this, "deleteSession");
 	}
 	/**
-	* Move one session out of the registry-global archive set, restoring its
-	* normal visibility (its accounting seat was never moved, so the session
-	* reappears at its original workspace position). Idempotent: an
-	* already-unarchived session resolves without writing; an unknown session
-	* rejects like `archiveSession` does.
-	* @param sessionId - the session to unarchive.
-	* @returns the full updated archive set.
-	*/
-	async unarchiveSession(sessionId) {
-		return this.enqueueOperation(async () => {
-			if (!await this.sessionKnown(sessionId)) throw new WorkspaceUnknownSessionError(sessionId);
-			const state = this.requireState();
-			if (!state.archivedSessionIds.includes(sessionId)) return { archivedSessionIds: [...state.archivedSessionIds] };
-			const next = {
-				...state,
-				archivedSessionIds: state.archivedSessionIds.filter((id) => id !== sessionId)
-			};
-			await this.setState(next);
-			return { archivedSessionIds: [...next.archivedSessionIds] };
-		});
-	}
-	/**
 	* Permanently delete one session and every trace of it (transcript
-	* directory, workspace accounting, archive marker, projection cache row).
+	* directory, workspace accounting, archive and pin markers, projection
+	* cache row).
 	* @param sessionId - the session to delete.
 	* @returns `{ deleted: true }` after durability.
 	* @throws {@link WorkspaceUnknownSessionError} when the session is unknown.
@@ -116,14 +97,16 @@ var ArchiveWorkspaceRegistry = class extends WorkspaceRegistry {
 		if (!await this.sessionKnown(sessionId)) throw new WorkspaceUnknownSessionError(sessionId);
 		const sessions = this.ctx.get("sessions");
 		const live = sessions?.get(sessionId);
+		const wasLive = live !== void 0;
 		if (live !== void 0) {
 			// Durability barrier first: no pending transcript writes may race
 			// the directory removal (the persistence backend closes handles per
 			// batch, so a flushed session leaves no open file).
 			await sessions.flush(live);
-			// Detach from the store; `session/disposed` fires synchronously,
-			// which drives the browser `host/session-removed` frame and starts
-			// the projection cache's final write-behind.
+			// Detach from the store; `session/disposed` fires synchronously, and
+			// the shipped session-controller relay turns that into the
+			// `api-session/removed` frame the browser drops the row on. It also
+			// starts the projection cache's final write-behind.
 			const entry = sessions.liveEntryFor(live);
 			sessions.detachEntered(entry);
 		}
@@ -133,14 +116,28 @@ var ArchiveWorkspaceRegistry = class extends WorkspaceRegistry {
 		await projCache?.whenIdle?.();
 		await this.removeTranscriptDirectory(sessionId);
 		const state = this.requireState();
-		if (state.archivedSessionIds.includes(sessionId)) {
+		const archived = state.archivedSessionIds.includes(sessionId);
+		const pinned = state.pinnedSessionIds.includes(sessionId);
+		if (archived || pinned) {
 			await this.setState({
 				...state,
-				archivedSessionIds: state.archivedSessionIds.filter((id) => id !== sessionId)
+				archivedSessionIds: state.archivedSessionIds.filter((id) => id !== sessionId),
+				pinnedSessionIds: state.pinnedSessionIds.filter((id) => id !== sessionId)
 			});
 		}
 		await this.removeFromWorkspaceAccounts(sessionId);
 		if (projCache !== void 0) await projCache.delete(sessionId);
+		// Rebuild the header index from storage now that the transcript is gone:
+		// the deleted identity must stop being "known" (it would otherwise be
+		// re-indexed by a later bootstrap and reappear as an empty workspace group).
+		await this.replaceHeaderIndex(await this.listStoredHeaders());
+		// A COLD session never fires `session/disposed`, so the shipped relay
+		// (`ctx.on('session/disposed') -> ctx.emit('api-session/removed')`) never
+		// runs and the browser would keep the row — with its transcript already
+		// deleted it lands in the sidebar's 「未分组」 group and fails to open.
+		// Relay the same frame the shipped relay sends, so the client records the
+		// `remove` mutation and drops the identity.
+		if (!wasLive) this.ctx.emit("api-session/removed", sessionId);
 		await this.deleteDescendants(sessionId);
 		await this.cleanSpill(sessionId);
 		return { deleted: true };
@@ -184,9 +181,8 @@ var ArchiveWorkspaceRegistry = class extends WorkspaceRegistry {
 				if (session.header.parentSession === sessionId && session.header.origin === "subagent") descendants.push(session.id);
 			}
 			// `sessionPersistence.list()` answers snapshot records
-			// (`{ header, ... }`) in the current DSH runtime, while earlier
-			// backends answered bare headers: normalize so a cascade never
-			// silently misses a stored child.
+			// (`{ header, ... }`); normalize so a cascade never silently misses
+			// a stored child.
 			for (const record of await this.ctx.sessionPersistence.list()) {
 				const header = record?.header ?? record;
 				if (header?.parentSession === sessionId && header.origin === "subagent" && !descendants.includes(header.id)) descendants.push(header.id);
