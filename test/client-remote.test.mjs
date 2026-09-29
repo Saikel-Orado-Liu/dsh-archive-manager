@@ -19,7 +19,7 @@ const statics = {};
 // The modules these three bundles actually require: cordis (for the gateway
 // and typert client halves), react (for the archive-manager surfaces), and the
 // primitives stand-in below. dsh-client-store is deliberately absent — the
-// 0.1.7 deletion UI does not touch it.
+// 0.2.0 deletion UI does not touch it.
 for (const spec of ["react", "react/jsx-runtime", "@deepseek-ai/cordis"]) {
 	statics[spec] = await import(pathToFileURL(requireFallback.resolve(spec)).href);
 }
@@ -27,7 +27,7 @@ statics["@deepseek-ai/dsh-client-ui-primitives"] = { MenuItemButton: () => null,
 
 globalThis.window = globalThis;
 globalThis.document = { querySelector: () => null, createElement: () => ({ dataset: {}, set textContent(v) {} }), head: { appendChild: () => {} }, baseURI: "http://127.0.0.1:3080/" };
-// The 0.1.7 gateway client builds its Remote-stream mux socket eagerly at
+// The 0.2.0 gateway client builds its Remote-stream mux socket eagerly at
 // `apply`. Pin the transport base and install an inert socket so the test never
 // opens a real connection to the running harness.
 globalThis.__DSH_TRANSPORT__ = { streamBaseUrl: "http://127.0.0.1:3080/" };
@@ -77,7 +77,7 @@ root.provide("connection", {
 			return { ok: true, value: { deleted: true } };
 		}
 	},
-	// The 0.1.7 alpha connection surface: the api-gateway client registers a
+	// The 0.2.0 connection surface: the api-gateway client registers a
 	// generation source (unregister-capable) and starts the connection loop
 	// (returns a stop handle) at construction.
 	registerGenerationSource: () => () => {},

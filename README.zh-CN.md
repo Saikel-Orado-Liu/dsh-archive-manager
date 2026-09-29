@@ -25,6 +25,16 @@
 npx @deepseek-ai/dsh plugin --profile web add @gamegeek-saikel/dsh-archive-manager
 ```
 
+上面装的是 npm 的 `latest` 标签。本插件与 DSH 使用同样的两条 npm 通道，而每个构建只能在它对应的那条 DSH 发布线上运行，因此请按你的运行时选择通道：
+
+| npm dist-tag | 对应 | 安装命令 |
+| --- | --- | --- |
+| `latest` | 当前 DSH 发布线 | `dsh plugin --profile web add @gamegeek-saikel/dsh-archive-manager` |
+| `next` | 下一条 DSH 发布线 | `dsh plugin --profile web add @gamegeek-saikel/dsh-archive-manager@next` |
+| `alpha` | alpha 构建 | `dsh plugin --profile web add @gamegeek-saikel/dsh-archive-manager@alpha` |
+
+用 `npm dist-tag ls @deepseek-ai/dsh` 可查看各条通道对应哪个 DSH 版本，用 `npm view @gamegeek-saikel/dsh-archive-manager dist-tags` 查看各条通道对应哪个插件版本。DSH 运行时会拒绝加载对等依赖不匹配的 bundle，因此选错通道会直接安装失败，而不会把插件装成半可用的状态。
+
 然后启动 DSH Web：
 
 ```bash
@@ -34,6 +44,8 @@ npx @deepseek-ai/dsh web
 > 如果已全局安装 DSH CLI，也可以用 `dsh` 代替 `npx @deepseek-ai/dsh`。
 
 通过 DSH CLI 安装单个 npm 包，它会应用包内根 `cordis.patch.yml`（禁用官方 `workspace`、`session-projection-cache` 两行；插入 `workspace-archive-manager`、`session-projection-cache-archive-manager`、`ui-workspace-archive-manager`）。官方 `ui-workspace` 行保持启用。
+
+插件声明并已验证兼容 DSH `^0.2.0-rc.2`。它的 `@deepseek-ai/dsh*` 对等依赖即所能运行的发布线；运行时不满足时 harness 会拒绝加载该 bundle，因此为某条线构建的版本不会被装进另一条线。
 
 ## 概述
 
@@ -107,7 +119,7 @@ npx @deepseek-ai/dsh web
 
 - `sidebar.workspaces.session.menu.item`——一个 `MenuItemButton`（`danger`、`separatorBefore`、order 500），点击后关闭菜单并抛出删除请求；
 - `shell.overlay`——frame 级 `Modal` 确认框，因此对话框的生命周期长于打开它的菜单行；
-- `ARCHIVE_MANAGER_REMOTE`——`workspaceRegistry/deleteSession` 描述符，strict codec 遵循 0.1.7 生成契约 `{ mode: 'strict', typeSymbol, create() }`，并用无依赖 shim 实现（bundle 内不引入第二份 zod）。
+- `ARCHIVE_MANAGER_REMOTE`——`workspaceRegistry/deleteSession` 描述符，strict codec 遵循 0.2.0 生成契约 `{ mode: 'strict', typeSymbol, create() }`，并用无依赖 shim 实现（bundle 内不引入第二份 zod）。
 
 `apply` fiber 为 async：先 `$mount` Remote contribution 再注册 slots，随后用 `ctx.get("remote.workspaceRegistry")` 显式读取（若把 `remote.workspaceRegistry` 声明进 inject，会与同一 fiber 自身的 `$mount` 死锁）。
 

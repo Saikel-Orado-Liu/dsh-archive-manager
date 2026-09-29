@@ -168,7 +168,7 @@ test("shipped archive/unarchive/pin behavior is inherited unchanged", async () =
 		workspaces: { [A]: workspace("D:\\proj-a", [s1, s2]) }
 	});
 	const registry = await mountWorkspaceRegistry(env);
-	// DSH 0.1.7 ships the archive set itself; the fork must not shadow it.
+	// DSH 0.2.0 ships the archive set itself; the fork must not shadow it.
 	await registry.archiveSession(s1);
 	assert.deepEqual(env.global.archivedSessionIds, [s1]);
 	await registry.archiveSession(s1); // idempotent

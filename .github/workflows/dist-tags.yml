@@ -1,0 +1,67 @@
+name: dist-tags.yml
+
+# Reconciles npm dist-tags on its own, using the release policy in
+# scripts/dist-tag.mjs: every tag is re-pointed at the newest published version
+# whose @deepseek-ai/dsh* peer ranges accept that DSH release line.
+#
+# publish.yml already reconciles after every release, so this workflow is the
+# repair path: run it by hand from the Actions tab, or let the push that lands
+# the policy script trigger it. The paths filter below is what corrects tags
+# written by a release process that predates the policy.
+#
+# Rewriting a tag that already exists needs a credential npm's trusted
+# publishing cannot mint (its OIDC token carries publish scope only), so the
+# strict reconcile below only succeeds once an NPM_TOKEN secret holds a
+# write-capable npm token. The script prefers that secret when it is present.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/dist-tags.yml'
+      - 'scripts/dist-tag.mjs'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.21.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org/
+          cache: pnpm
+
+      - name: Upgrade npm for OIDC trusted publishing
+        run: npm install -g npm@11
+
+      # Only semver is needed; --ignore-scripts skips the package preflight.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      # Kept apart from the reconcile so a credential problem and a policy
+      # problem never look alike in the run summary.
+      - name: Check the npm credential
+        continue-on-error: true
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: node scripts/dist-tag.mjs whoami
+
+      - name: Reconcile dist-tags
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: node scripts/dist-tag.mjs reconcile

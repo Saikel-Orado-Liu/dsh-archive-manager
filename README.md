@@ -25,6 +25,16 @@ The plugin ships as a **single npm package** (`@gamegeek-saikel/dsh-archive-mana
 npx @deepseek-ai/dsh plugin --profile web add @gamegeek-saikel/dsh-archive-manager
 ```
 
+That installs the npm `latest` tag. The plugin publishes on the same two npm channels DSH itself uses, and a build only runs on the DSH line it was built for, so install the channel that matches your runtime:
+
+| npm dist-tag | Tracks | Install command |
+| --- | --- | --- |
+| `latest` | the current DSH release line | `dsh plugin --profile web add @gamegeek-saikel/dsh-archive-manager` |
+| `next` | the upcoming DSH release line | `dsh plugin --profile web add @gamegeek-saikel/dsh-archive-manager@next` |
+| `alpha` | alpha builds | `dsh plugin --profile web add @gamegeek-saikel/dsh-archive-manager@alpha` |
+
+`npm dist-tag ls @deepseek-ai/dsh` shows which DSH version serves each line, and `npm view @gamegeek-saikel/dsh-archive-manager dist-tags` shows which plugin version serves it. A DSH runtime refuses to load a bundle whose peer ranges reject it, so picking the wrong channel fails the install outright rather than half-loading the plugin.
+
 Then start DSH Web:
 
 ```bash
@@ -34,6 +44,8 @@ npx @deepseek-ai/dsh web
 > If you have the DSH CLI installed globally, you can use `dsh` instead of `npx @deepseek-ai/dsh`.
 
 This installs the single npm package through the DSH CLI, which applies the package's root `cordis.patch.yml` (disables the stock `workspace` and `session-projection-cache` rows; inserts `workspace-archive-manager`, `session-projection-cache-archive-manager`, and `ui-workspace-archive-manager`). The stock `ui-workspace` row is left enabled.
+
+The plugin declares and is verified against DSH `^0.2.0-rc.2`. Its `@deepseek-ai/dsh*` peer ranges name the DSH release line it runs on, and the harness refuses to load a bundle whose peers reject the running runtime — so a version built for one line is never installed into the other.
 
 ## Overview
 
@@ -107,7 +119,7 @@ A hand-written, self-registering bundle (`window.__ModuleLoader__.load({ id, fac
 
 - `sidebar.workspaces.session.menu.item` — one `MenuItemButton` (`danger`, `separatorBefore`, order 500) that closes the menu and raises the request;
 - `shell.overlay` — the frame-wide `Modal` confirmation, so the dialog outlives the menu row that opened it;
-- `ARCHIVE_MANAGER_REMOTE` — the `workspaceRegistry/deleteSession` descriptor, whose strict codecs follow the generated 0.1.7 contract `{ mode: 'strict', typeSymbol, create() }` with dependency-free shims (no second zod copy in the bundle).
+- `ARCHIVE_MANAGER_REMOTE` — the `workspaceRegistry/deleteSession` descriptor, whose strict codecs follow the generated 0.2.0 contract `{ mode: 'strict', typeSymbol, create() }` with dependency-free shims (no second zod copy in the bundle).
 
 The `apply` fiber is async: it `$mount`s the Remote contribution before registering slots, then reads `ctx.get("remote.workspaceRegistry")` explicitly (declaring `remote.workspaceRegistry` in inject would deadlock with the same fiber performing the mount).
 

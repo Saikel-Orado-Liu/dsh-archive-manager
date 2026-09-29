@@ -1,6 +1,6 @@
 // dsh-archive-manager client bundle self-tests (node:test).
 //
-// Materializes the client bundle against the DSH 0.1.7 shell seed table and
+// Materializes the client bundle against the DSH 0.2.0 shell seed table and
 // exercises the bundle's own surfaces: the Remote contribution, the
 // pending-deletion store, the row-menu action, and the confirmation dialog.
 // Every shared module is loaded through ONE CommonJS resolver so the bundle and
@@ -15,7 +15,7 @@ import { createRequire } from "node:module";
 const requireFallback = createRequire(import.meta.url);
 const react = requireFallback("react");
 
-// --- static module table (mirror of the 0.1.7 shell seed table, subset used here) ---
+// --- static module table (mirror of the 0.2.0 shell seed table, subset used here) ---
 const statics = {
 	react,
 	"react/jsx-runtime": requireFallback("react/jsx-runtime"),
@@ -96,7 +96,7 @@ test("Remote contribution declares exactly the deleteSession endpoint with stric
 	assert.equal(descriptor.parameters[0].name, "sessionId");
 	assert.equal(descriptor.parameters[0].codec.mode, "strict");
 	assert.equal(descriptor.result.mode, "strict");
-	// The 0.1.7 generated contract is { mode, typeSymbol, create() }: the
+	// The 0.2.0 generated contract is { mode, typeSymbol, create() }: the
 	// Client gateway validates that shape before a contribution may mount.
 	assert.equal(typeof descriptor.parameters[0].codec.create, "function");
 	assert.equal(typeof descriptor.result.create, "function");
