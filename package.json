@@ -1,6 +1,6 @@
 {
   "name": "@gamegeek-saikel/dsh-archive-manager",
-  "version": "0.5.0-next.0",
+  "version": "0.6.0-next.0",
   "description": "Permanent session deletion for the DSH Web GUI — remove a session's log, workspace accounting, archive/pin markers, projection-cache row, subagent children, and spill data from the sidebar row menu, while DSH's own archive UI keeps owning archived sessions.",
   "type": "module",
   "packageManager": "pnpm@11.21.0",
