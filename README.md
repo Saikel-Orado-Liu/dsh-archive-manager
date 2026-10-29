@@ -151,15 +151,15 @@ dsh-archive-manager/
 
 There is no compile step — the package is plain ESM. `pnpm build` runs a lightweight publish preflight (`scripts/check-package.mjs`) that verifies the single-package structure.
 
-Self-tests resolve the real `@deepseek-ai` packages through the test tree's `node_modules` junction to the DSH flat fallback (`%USERPROFILE%\.dsh\profiles\node_modules`, same module instances as the runtime). Create it once if it is missing:
+The self-tests resolve the same `@deepseek-ai` packages the runtime mounts, installed from the branch's declared DSH line:
 
 ```powershell
-New-Item -ItemType Junction -Path .\node_modules -Target "$env:USERPROFILE\.dsh\profiles\node_modules"
+pnpm install  # the branch's DSH line
 pnpm build    # publish preflight
 pnpm test     # node:test suites
 ```
 
-The suites cover: the inherited shipped archive/unarchive/pin behavior, delete idempotency and unknown-id errors, accounting + archive/pin marker cleanup, transcript-directory removal, live-session flush → detach → `session/disposed`, `whenIdle`-before-row-delete ordering, subagent cascade (origin `subagent` only — fork branches with `parentSession` are never cascade-deleted), the intact legacy API surface, projcache delete/whenIdle timing, the typert gateway claim + dispatch end to end, the client bundle's Remote descriptor and store, and a real `$mount` + `connection.rpc.call` integration against the shipped registry/gateway bundles.
+The suites cover: the inherited shipped archive/unarchive/pin behavior, delete idempotency and unknown-id errors, accounting + archive/pin marker cleanup, transcript-directory removal, live-session flush → detach → `session/disposed`, `whenIdle`-before-row-delete ordering, subagent cascade (origin `subagent` only — fork branches with `parentSession` are never cascade-deleted), the intact legacy API surface, projcache delete/whenIdle timing, the typert gateway claim + dispatch end to end, the client bundle's Remote descriptor and store, and a real `$mount` + `connection.rpc.call` integration against the shipped registry/gateway bundles. `.github/workflows/compat.yml` reruns the build and suite against the newest DSH patch on `main`, `next`, and `alpha` every day.
 
 ## Documentation
 
