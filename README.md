@@ -159,7 +159,7 @@ pnpm build    # publish preflight
 pnpm test     # node:test suites
 ```
 
-The suites cover: the inherited shipped archive/unarchive/pin behavior, delete idempotency and unknown-id errors, accounting + archive/pin marker cleanup, transcript-directory removal, live-session flush → detach → `session/disposed`, `whenIdle`-before-row-delete ordering, subagent cascade (origin `subagent` only — fork branches with `parentSession` are never cascade-deleted), the intact legacy API surface, projcache delete/whenIdle timing, the typert gateway claim + dispatch end to end, the client bundle's Remote descriptor and store, and a real `$mount` + `connection.rpc.call` integration against the shipped registry/gateway bundles. `.github/workflows/compat.yml` reruns the build and suite against the newest DSH patch on `main`, `next`, and `alpha` every day.
+The suites cover: the inherited shipped archive/unarchive/pin behavior, delete idempotency and unknown-id errors, accounting + archive/pin marker cleanup, transcript-directory removal, live-session flush → detach → `session/disposed`, `whenIdle`-before-row-delete ordering, subagent cascade (origin `subagent` only — fork branches with `parentSession` are never cascade-deleted), the intact legacy API surface, projcache delete/whenIdle timing, the typert gateway claim + dispatch end to end, the client bundle's Remote descriptor and store, and a real `$mount` + `connection.rpc.call` integration against the shipped registry/gateway bundles. `.github/workflows/compat.yml` runs the build and suite on every push to `main`, `next`, or `alpha`, and daily across all three channels.
 
 ## Documentation
 
