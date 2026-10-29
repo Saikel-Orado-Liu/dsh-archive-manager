@@ -338,22 +338,25 @@ test("typert gateway SRC: claim + dispatch for deleteSession end to end", async 
 	await tick(); // ctx.inject registers the interceptor asynchronously
 	assert.ok(captured, "gateway must register a /api interceptor");
 	assert.equal(captured.channel, "/api");
+	// DSH 0.2.1 passes the admitted Peer as the interceptor handler's fourth
+	// argument; the plugin-visible dispatch only needs a live owner identity.
+	const peer = { signal: new AbortController().signal, principal: { kind: "owner" }, interactions: "answer", ctx: env.ctx };
 	// The one added endpoint is claimed; everything else stays where it was.
 	assert.equal(captured.matches("workspaceRegistry/deleteSession"), true);
 	assert.equal(captured.matches("workspace.archiveSession"), false);
 	assert.equal(captured.matches("workspace.list"), false);
 	// dispatch: deleteSession
-	const del = await captured.handler("workspaceRegistry/deleteSession", { args: { sessionId: s3 } }, void 0);
+	const del = await captured.handler("workspaceRegistry/deleteSession", { args: { sessionId: s3 } }, void 0, peer);
 	assert.equal(del.ok, true);
 	assert.deepEqual(del.value, { deleted: true });
 	assert.deepEqual(env.table.get(B).sessionIds, []);
 	assert.equal(existsSync(env.located.get(s3)), false, "transcript dir removed via gateway dispatch");
 	// dispatch: unknown session surfaces as a failed rpc
-	const unknown = await captured.handler("workspaceRegistry/deleteSession", { args: { sessionId: sUnknown } }, void 0);
+	const unknown = await captured.handler("workspaceRegistry/deleteSession", { args: { sessionId: sUnknown } }, void 0, peer);
 	assert.equal(unknown.ok, false);
 	assert.match(unknown.error.message, /no such session/);
 	// dispatch: missing args is rejected
-	const bad = await captured.handler("workspaceRegistry/deleteSession", { args: {} }, void 0);
+	const bad = await captured.handler("workspaceRegistry/deleteSession", { args: {} }, void 0, peer);
 	assert.equal(bad.ok, false);
 });
 

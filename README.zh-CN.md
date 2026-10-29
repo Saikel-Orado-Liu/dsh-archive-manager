@@ -1,4 +1,5 @@
 <h1 align="center">DSH Archive Manager（会话彻底删除）</h1>
+<p align="center"><img src="docs/assets/banner-archive-manager.svg" alt="DSH Archive Manager banner" width="100%"/></p>
 
 <p align="center">
   <a href="./README.md">English</a>
@@ -25,7 +26,7 @@
 npx @deepseek-ai/dsh plugin --profile web add @gamegeek-saikel/dsh-archive-manager
 ```
 
-上面装的是 npm 的 `latest` 标签。本插件与 DSH 使用同样的两条 npm 通道，而每个构建只能在它对应的那条 DSH 发布线上运行，因此请按你的运行时选择通道：
+上面装的是 npm 的 `latest` 标签。本插件与 DSH 使用同样的三条 npm 通道（`latest`、`next`、`alpha`），而每个构建只能在它对应的那条 DSH 发布线上运行，因此请按你的运行时选择通道：
 
 | npm dist-tag | 对应 | 安装命令 |
 | --- | --- | --- |

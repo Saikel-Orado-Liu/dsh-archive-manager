@@ -1,4 +1,5 @@
 <h1 align="center">DSH Archive Manager</h1>
+<p align="center"><img src="docs/assets/banner-archive-manager.svg" alt="DSH Archive Manager banner" width="100%"/></p>
 
 <p align="center">
   <strong>English</strong>
@@ -25,7 +26,7 @@ The plugin ships as a **single npm package** (`@gamegeek-saikel/dsh-archive-mana
 npx @deepseek-ai/dsh plugin --profile web add @gamegeek-saikel/dsh-archive-manager
 ```
 
-That installs the npm `latest` tag. The plugin publishes on the same two npm channels DSH itself uses, and a build only runs on the DSH line it was built for, so install the channel that matches your runtime:
+That installs the npm `latest` tag. The plugin publishes on the same three npm channels (`latest`, `next`, `alpha`) DSH itself uses, and a build only runs on the DSH line it was built for, so install the channel that matches your runtime:
 
 | npm dist-tag | Tracks | Install command |
 | --- | --- | --- |

@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="360" viewBox="0 0 1600 360" role="img" aria-labelledby="title desc">
+  <title id="title">DSH Archive Manager</title>
+  <desc id="desc">Permanent session deletion for DeepSeek Harness: transcript, workspace accounting, archive markers, projection cache rows, subagent sessions, and spill data.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#120a12"/>
+      <stop offset="0.55" stop-color="#21101a"/>
+      <stop offset="1" stop-color="#3a1720"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ff7a7a"/>
+      <stop offset="1" stop-color="#ffc46b"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ff7a7a" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#ff7a7a" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M48 0H0V48" fill="none" stroke="#ffb0b0" stroke-opacity="0.08" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="1600" height="360" rx="28" fill="url(#bg)"/>
+  <rect width="1600" height="360" rx="28" fill="url(#grid)"/>
+  <rect x="1" y="1" width="1598" height="358" rx="27" fill="none" stroke="#ffb0b0" stroke-opacity="0.16"/>
+  <ellipse cx="1330" cy="160" rx="260" ry="190" fill="url(#glow)"/>
+  <g font-family="Inter, 'Segoe UI', 'Noto Sans SC', sans-serif">
+    <text x="92" y="94" fill="#ff9d9d" font-size="18" font-weight="700" letter-spacing="5">DEEPSEEK HARNESS PLUGIN</text>
+    <text x="90" y="178" fill="#fff5f2" font-size="70" font-weight="800" letter-spacing="-1">DSH Archive Manager</text>
+    <text x="94" y="230" fill="#d7b6b0" font-size="25">Permanent session deletion · one clean sweep</text>
+    <text x="94" y="272" fill="#a98c86" font-size="21">Transcript · accounting · archive &amp; pin markers · cache · subagents · spill</text>
+    <g transform="translate(96 300)">
+      <rect width="150" height="34" rx="17" fill="#ff7a7a" fill-opacity="0.13" stroke="#ff7a7a" stroke-opacity="0.45"/>
+      <text x="18" y="23" fill="#ffb3b3" font-size="15" font-weight="600">delete session</text>
+      <rect x="168" width="188" height="34" rx="17" fill="#ffc46b" fill-opacity="0.11" stroke="#ffc46b" stroke-opacity="0.4"/>
+      <text x="186" y="23" fill="#ffd792" font-size="15" font-weight="600">live sidebar update</text>
+      <rect x="374" width="170" height="34" rx="17" fill="#ff9d9d" fill-opacity="0.11" stroke="#ff9d9d" stroke-opacity="0.38"/>
+      <text x="392" y="23" fill="#ffc0c0" font-size="15" font-weight="600">zero residue</text>
+    </g>
+  </g>
+  <g transform="translate(1030 62)">
+    <rect x="0" y="0" width="480" height="244" rx="22" fill="#160b10" fill-opacity="0.72" stroke="#ffb0b0" stroke-opacity="0.16"/>
+    <g transform="translate(42 42)">
+      <rect x="0" y="0" width="396" height="58" rx="14" fill="#ff7a7a" fill-opacity="0.08" stroke="#ff9d9d" stroke-opacity="0.22"/>
+      <circle cx="29" cy="29" r="10" fill="#ff7a7a" fill-opacity="0.85"/>
+      <path d="M24 29l4 4 8-9" fill="none" stroke="#1a0b10" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="54" y="26" fill="#ffe9e4" font-size="15" font-weight="600">session-8f2c…</text>
+      <text x="54" y="44" fill="#c49b96" font-size="13">transcript directory removed</text>
+      <rect x="0" y="72" width="396" height="58" rx="14" fill="#ffc46b" fill-opacity="0.07" stroke="#ffd792" stroke-opacity="0.2"/>
+      <circle cx="29" cy="101" r="10" fill="#ffc46b" fill-opacity="0.8"/>
+      <path d="M24 101l4 4 8-9" fill="none" stroke="#1a0b10" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="54" y="98" fill="#fff1d6" font-size="15" font-weight="600">workspace + archive + pin</text>
+      <text x="54" y="116" fill="#c9aa84" font-size="13">accounting rows cleared</text>
+      <rect x="0" y="144" width="396" height="58" rx="14" fill="#ff9d9d" fill-opacity="0.07" stroke="#ffb3b3" stroke-opacity="0.2"/>
+      <circle cx="29" cy="173" r="10" fill="#ff9d9d" fill-opacity="0.8"/>
+      <path d="M24 173l4 4 8-9" fill="none" stroke="#1a0b10" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="54" y="170" fill="#ffe4e0" font-size="15" font-weight="600">projection cache + spill</text>
+      <text x="54" y="188" fill="#c99a95" font-size="13">subagent children cascaded</text>
+    </g>
+  </g>
+</svg>

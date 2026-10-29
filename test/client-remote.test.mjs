@@ -12,6 +12,7 @@ import { pathToFileURL } from "node:url";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { join } from "node:path";
+import { existsSync } from "node:fs";
 import { Context } from "@deepseek-ai/cordis";
 
 const requireFallback = createRequire(import.meta.url);
@@ -22,6 +23,11 @@ const statics = {};
 // 0.2.0 deletion UI does not touch it.
 for (const spec of ["react", "react/jsx-runtime", "@deepseek-ai/cordis"]) {
 	statics[spec] = await import(pathToFileURL(requireFallback.resolve(spec)).href);
+}
+try {
+	statics.zod = await import(pathToFileURL(requireFallback.resolve("zod")).href);
+} catch {
+	// DSH 0.2.0 browser bundles carried their own zod; only 0.2.1 needs the seam.
 }
 statics["@deepseek-ai/dsh-client-ui-primitives"] = { MenuItemButton: () => null, Button: () => null, Modal: () => null };
 
@@ -42,10 +48,13 @@ const factories = new Map();
 window.__ModuleLoader__ = { load: (h) => { factories.set(h.id, h.factory); } };
 
 async function loadBundle(pkg) {
-	// packages export "./client" (or nothing); resolve the bundle file directly
+	// DSH 0.2.1 splits the client entry into node/browser conditions; the test
+	// mounts the browser face, so load `client.browser.js` when present and fall
+	// back to the 0.2.0 `lib/client.js` layout otherwise.
 	const pkgJson = requireFallback.resolve(`${pkg}/package.json`);
 	const dir = pkgJson.slice(0, -"/package.json".length);
-	await import(pathToFileURL(join(dir, "lib/client.js")).href);
+	const browser = join(dir, "lib/client.browser.js");
+	await import(pathToFileURL(existsSync(browser) ? browser : join(dir, "lib/client.js")).href);
 }
 function materialize(id) {
 	const factory = factories.get(id);
