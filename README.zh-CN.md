@@ -151,15 +151,15 @@ dsh-archive-manager/
 
 无编译步骤——包为纯 ESM。`pnpm build` 运行轻量发布预检（`scripts/check-package.mjs`），校验单包结构。
 
-自测通过测试树的 `node_modules` junction 解析真实 `@deepseek-ai` 包（指向 `%USERPROFILE%\.dsh\profiles\node_modules` 扁平 fallback，与运行时同源、无重复模块实例）。缺失时创建一次：
+自测解析的 `@deepseek-ai` 包与运行时同源，按当前分支声明的 DSH 发布线安装：
 
 ```powershell
-New-Item -ItemType Junction -Path .\node_modules -Target "$env:USERPROFILE\.dsh\profiles\node_modules"
+pnpm install  # 当前分支的 DSH 发布线
 pnpm build    # 发布预检
 pnpm test     # node:test 套件
 ```
 
-覆盖范围：官方归档/取消归档/置顶行为的继承、delete 幂等性与未知 id 报错、记账与归档/置顶标记清理、转录目录删除、live 会话 flush → detach → `session/disposed`、`whenIdle` 先于缓存行删除、子会话级联（仅 `origin: "subagent"`——带 `parentSession` 的 fork 分支绝不级联删除）、原 API 面完好、projcache delete/whenIdle 时序、typert gateway 的 claim 与分发端到端、client bundle 的 Remote 描述符与 store，以及对官方 registry/gateway bundle 的真实 `$mount` + `connection.rpc.call` 集成。
+覆盖范围：官方归档/取消归档/置顶行为的继承、delete 幂等性与未知 id 报错、记账与归档/置顶标记清理、转录目录删除、live 会话 flush → detach → `session/disposed`、`whenIdle` 先于缓存行删除、子会话级联（仅 `origin: "subagent"`——带 `parentSession` 的 fork 分支绝不级联删除）、原 API 面完好、projcache delete/whenIdle 时序、typert gateway 的 claim 与分发端到端、client bundle 的 Remote 描述符与 store，以及对官方 registry/gateway bundle 的真实 `$mount` + `connection.rpc.call` 集成。`.github/workflows/compat.yml` 每天在 `main`、`next`、`alpha` 三条分支上安装各自的 DSH 最新补丁并重跑构建与测试。
 
 ## 文档
 
