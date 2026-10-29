@@ -159,7 +159,7 @@ pnpm build    # 发布预检
 pnpm test     # node:test 套件
 ```
 
-覆盖范围：官方归档/取消归档/置顶行为的继承、delete 幂等性与未知 id 报错、记账与归档/置顶标记清理、转录目录删除、live 会话 flush → detach → `session/disposed`、`whenIdle` 先于缓存行删除、子会话级联（仅 `origin: "subagent"`——带 `parentSession` 的 fork 分支绝不级联删除）、原 API 面完好、projcache delete/whenIdle 时序、typert gateway 的 claim 与分发端到端、client bundle 的 Remote 描述符与 store，以及对官方 registry/gateway bundle 的真实 `$mount` + `connection.rpc.call` 集成。`.github/workflows/compat.yml` 在推送到 `main`、`next`、`alpha` 时测试对应分支，并每天对三条分支跑完整矩阵。
+覆盖范围：官方归档/取消归档/置顶行为的继承、delete 幂等性与未知 id 报错、记账与归档/置顶标记清理、转录目录删除、live 会话 flush → detach → `session/disposed`、`whenIdle` 先于缓存行删除、子会话级联（仅 `origin: "subagent"`——带 `parentSession` 的 fork 分支绝不级联删除）、原 API 面完好、projcache delete/whenIdle 时序、typert gateway 的 claim 与分发端到端、client bundle 的 Remote 描述符与 store，以及对官方 registry/gateway bundle 的真实 `$mount` + `connection.rpc.call` 集成。`.github/workflows/compat.yml` 在推送到 `main`、`next`、`alpha` 时只测试对应通道；手动运行时跑三条通道的完整矩阵。没有定时任务。
 
 ## 文档
 
